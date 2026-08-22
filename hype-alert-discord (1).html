@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HYPE アラート</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+  :root {
+    --bg:#0a0b0f; --surface:#12141a; --surface2:#1a1d26; --border:#252836;
+    --accent:#7c5cfc; --accent-glow:rgba(124,92,252,0.25);
+    --green:#22d3a0; --red:#ff4d6a; --orange:#f59e0b; --blue:#38bdf8;
+    --text:#e8eaf0; --muted:#6b7280; --label:#9ca3af;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Space Grotesk',sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:24px 16px;}
+  header{width:100%;max-width:480px;display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;}
+  .logo{font-family:'Space Mono',monospace;font-size:13px;color:var(--muted);letter-spacing:0.08em;text-transform:uppercase;}
+  .logo span{color:var(--accent);}
+  .status-dot{width:8px;height:8px;border-radius:50%;background:var(--muted);display:inline-block;margin-right:6px;}
+  .status-dot.live{background:var(--green);box-shadow:0 0 6px var(--green);animation:pulse 2s infinite;}
+  .status-dot.error{background:var(--red);}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+  .status-label{font-size:12px;color:var(--muted);display:flex;align-items:center;}
+
+  .discord-banner{width:100%;max-width:480px;background:rgba(88,101,242,0.12);border:1px solid rgba(88,101,242,0.35);border-radius:12px;padding:14px 16px;font-size:13px;color:var(--label);display:flex;align-items:center;gap:10px;margin-bottom:20px;}
+  .discord-ok{color:var(--green);font-weight:600;}
+
+  /* Price card */
+  .price-card{width:100%;max-width:480px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:24px 24px 20px;margin-bottom:16px;position:relative;overflow:hidden;}
+  .price-card::before{content:'';position:absolute;top:-60px;right:-60px;width:180px;height:180px;background:var(--accent-glow);border-radius:50%;filter:blur(40px);pointer-events:none;}
+  .token-row{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+  .token-icon{width:36px;height:36px;background:linear-gradient(135deg,#7c5cfc,#5eead4);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:white;flex-shrink:0;}
+  .token-name{font-size:14px;font-weight:600;color:var(--label);letter-spacing:0.05em;}
+  .token-sub{font-size:11px;color:var(--muted);}
+  .price-display{font-family:'Space Mono',monospace;font-size:44px;font-weight:700;color:var(--text);line-height:1;letter-spacing:-0.02em;margin-bottom:8px;transition:color 0.3s;}
+  .price-display.up{color:var(--green);}
+  .price-display.down{color:var(--red);}
+  .change-badge{font-family:'Space Mono',monospace;font-size:12px;padding:2px 8px;border-radius:20px;background:rgba(34,211,160,0.1);color:var(--green);}
+  .change-badge.neg{background:rgba(255,77,106,0.1);color:var(--red);}
+  .last-update{font-size:11px;color:var(--muted);margin-top:6px;}
+
+  /* Volume card */
+  .volume-card{width:100%;max-width:480px;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:18px 20px;margin-bottom:16px;}
+  .volume-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+  .volume-label{font-size:12px;color:var(--muted);}
+  .volume-val{font-family:'Space Mono',monospace;font-size:20px;font-weight:700;}
+  .volume-bar-wrap{width:100%;height:8px;background:var(--surface2);border-radius:4px;overflow:hidden;}
+  .volume-bar{height:100%;border-radius:4px;transition:width 0.5s ease, background 0.3s;}
+  .volume-thresholds{display:flex;justify-content:space-between;margin-top:6px;font-size:10px;color:var(--muted);font-family:'Space Mono',monospace;}
+
+  /* Section */
+  .section-title{font-size:11px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:12px;width:100%;max-width:480px;}
+
+  /* Interval */
+  .interval-row{display:flex;align-items:center;justify-content:space-between;width:100%;max-width:480px;margin-bottom:16px;font-size:12px;color:var(--muted);}
+  .interval-btns{display:flex;gap:4px;}
+  .iv-btn{padding:4px 10px;border-radius:6px;border:1px solid var(--border);background:none;color:var(--muted);font-size:11px;cursor:pointer;font-family:'Space Grotesk',sans-serif;transition:all 0.15s;}
+  .iv-btn.active{background:var(--surface2);border-color:var(--accent);color:var(--accent);}
+
+  /* Alert card */
+  .alert-card{width:100%;max-width:480px;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;margin-bottom:12px;}
+  .alert-row{display:flex;align-items:center;gap:12px;margin-bottom:14px;}
+  .alert-direction{display:flex;background:var(--surface2);border-radius:8px;overflow:hidden;flex-shrink:0;}
+  .dir-btn{padding:7px 14px;font-size:12px;font-weight:600;border:none;background:none;color:var(--muted);cursor:pointer;transition:all 0.15s;font-family:'Space Grotesk',sans-serif;}
+  .dir-btn.active-above{background:rgba(34,211,160,0.15);color:var(--green);}
+  .dir-btn.active-below{background:rgba(255,77,106,0.15);color:var(--red);}
+  .price-input-wrap{flex:1;position:relative;}
+  .price-input-wrap .currency{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:13px;color:var(--muted);font-family:'Space Mono',monospace;pointer-events:none;}
+  .price-input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px 8px 24px;font-family:'Space Mono',monospace;font-size:15px;color:var(--text);outline:none;transition:border-color 0.2s;}
+  .price-input:focus{border-color:var(--accent);}
+  .price-input::placeholder{color:var(--muted);}
+  .add-btn{width:100%;padding:10px;background:var(--accent);border:none;border-radius:8px;color:white;font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:opacity 0.15s,transform 0.1s;}
+  .add-btn:hover{opacity:0.85;}
+  .add-btn:active{transform:scale(0.98);}
+
+  /* Alerts list */
+  .alerts-list{width:100%;max-width:480px;display:flex;flex-direction:column;gap:8px;margin-bottom:20px;}
+  .alert-item{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;animation:slideIn 0.2s ease;}
+  .alert-item.triggered{border-color:var(--accent);background:rgba(124,92,252,0.08);}
+  @keyframes slideIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+  .alert-item-left{display:flex;align-items:center;gap:10px;}
+  .alert-arrow{width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:6px;}
+  .alert-arrow.above{background:rgba(34,211,160,0.1);}
+  .alert-arrow.below{background:rgba(255,77,106,0.1);}
+  .alert-info .price{font-family:'Space Mono',monospace;font-size:15px;font-weight:700;}
+  .alert-info .desc{font-size:11px;color:var(--muted);margin-top:2px;}
+  .delete-btn{width:28px;height:28px;background:none;border:1px solid var(--border);border-radius:6px;color:var(--muted);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.15s;flex-shrink:0;}
+  .delete-btn:hover{border-color:var(--red);color:var(--red);background:rgba(255,77,106,0.08);}
+
+  /* Volume alert config */
+  .vol-config{width:100%;max-width:480px;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;margin-bottom:12px;}
+  .vol-config-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;}
+  .vol-config-row:last-child{margin-bottom:0;}
+  .vol-input-wrap{position:relative;flex:1;}
+  .vol-input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-family:'Space Mono',monospace;font-size:14px;color:var(--text);outline:none;transition:border-color 0.2s;text-align:right;}
+  .vol-input:focus{border-color:var(--accent);}
+  .vol-input-label{font-size:12px;color:var(--muted);white-space:nowrap;}
+  .vol-toggle{padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;font-family:'Space Grotesk',sans-serif;transition:all 0.15s;white-space:nowrap;}
+  .vol-toggle.on{background:rgba(34,211,160,0.15);border-color:var(--green);color:var(--green);}
+
+  /* Log */
+  .log-list{width:100%;max-width:480px;display:flex;flex-direction:column;gap:6px;margin-bottom:24px;}
+  .log-item{font-size:12px;color:var(--muted);padding:8px 12px;background:var(--surface);border-radius:8px;border-left:3px solid var(--accent);font-family:'Space Mono',monospace;}
+  .log-item.log-red{border-left-color:var(--red);}
+  .log-item.log-green{border-left-color:var(--green);}
+  .log-item.log-orange{border-left-color:var(--orange);}
+  .log-item.log-blue{border-left-color:var(--blue);}
+
+  .empty-state{text-align:center;color:var(--muted);font-size:13px;padding:20px;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">HYPE <span>// ALERT</span></div>
+  <div class="status-label">
+    <span class="status-dot" id="statusDot"></span>
+    <span id="statusText">接続中...</span>
+  </div>
+</header>
+
+<div class="discord-banner">
+  <span>🎮</span>
+  <span>Discord通知: <span class="discord-ok">✓ 設定済み</span> — スリープ中も届きます</span>
+</div>
+
+<!-- Price -->
+<div class="price-card">
+  <div class="token-row">
+    <div class="token-icon">HYPE</div>
+    <div>
+      <div class="token-name">HYPERLIQUID</div>
+      <div class="token-sub">Hyperliquid / USD</div>
+    </div>
+  </div>
+  <div class="price-display" id="priceDisplay">---.--</div>
+  <div><span class="change-badge" id="changeBadge">---</span></div>
+  <div class="last-update" id="lastUpdate">更新待ち...</div>
+</div>
+
+<!-- Volume 1m -->
+<div class="section-title">1分足 出来高モニター</div>
+<div class="volume-card">
+  <div class="volume-row">
+    <span class="volume-label">現在の出来高（1分足）</span>
+    <span class="volume-val" id="volDisplay" style="color:var(--muted)">---</span>
+  </div>
+  <div class="volume-bar-wrap">
+    <div class="volume-bar" id="volBar" style="width:0%;background:var(--accent)"></div>
+  </div>
+  <div class="volume-thresholds">
+    <span>0</span>
+    <span style="color:var(--blue)">▲ 10K</span>
+    <span style="color:var(--orange)">▲ 50K</span>
+    <span style="color:var(--red)">▲ 100K</span>
+  </div>
+</div>
+<div class="vol-config">
+  <div class="vol-config-row">
+    <span class="vol-input-label">📊 弱（1m）</span>
+    <input class="vol-input" type="number" id="vol_1m_weak_input" value="10000" step="1000"
+      onchange="volAlert1m.weak.threshold=parseInt(this.value)||10000">
+    <button class="vol-toggle on" id="vol_1m_weak_toggle" onclick="toggleVolAlert('1m','weak')">ON</button>
+  </div>
+  <div class="vol-config-row">
+    <span class="vol-input-label">⚡ 中（1m）</span>
+    <input class="vol-input" type="number" id="vol_1m_mid_input" value="50000" step="5000"
+      onchange="volAlert1m.mid.threshold=parseInt(this.value)||50000">
+    <button class="vol-toggle on" id="vol_1m_mid_toggle" onclick="toggleVolAlert('1m','mid')">ON</button>
+  </div>
+  <div class="vol-config-row">
+    <span class="vol-input-label">🔥 強（1m）</span>
+    <input class="vol-input" type="number" id="vol_1m_strong_input" value="100000" step="10000"
+      onchange="volAlert1m.strong.threshold=parseInt(this.value)||100000">
+    <button class="vol-toggle on" id="vol_1m_strong_toggle" onclick="toggleVolAlert('1m','strong')">ON</button>
+  </div>
+</div>
+
+<!-- Volume 5m -->
+<div class="section-title">5分足 出来高モニター</div>
+<div class="volume-card">
+  <div class="volume-row">
+    <span class="volume-label">現在の出来高（5分足）</span>
+    <span class="volume-val" id="vol5mDisplay" style="color:var(--muted)">---</span>
+  </div>
+  <div class="volume-bar-wrap">
+    <div class="volume-bar" id="vol5mBar" style="width:0%;background:var(--accent)"></div>
+  </div>
+  <div class="volume-thresholds">
+    <span>0</span>
+    <span style="color:var(--green)">▲ 70K</span>
+    <span style="color:var(--red)">▲ 200K</span>
+  </div>
+</div>
+<div class="vol-config">
+  <div class="vol-config-row">
+    <span class="vol-input-label">📊 弱（5m）</span>
+    <input class="vol-input" type="number" id="vol_5m_weak_input" value="70000" step="5000"
+      onchange="volAlert5m.weak.threshold=parseInt(this.value)||70000">
+    <button class="vol-toggle on" id="vol_5m_weak_toggle" onclick="toggleVolAlert('5m','weak')">ON</button>
+  </div>
+  <div class="vol-config-row">
+    <span class="vol-input-label">🔥 強（5m）</span>
+    <input class="vol-input" type="number" id="vol_5m_strong_input" value="200000" step="10000"
+      onchange="volAlert5m.strong.threshold=parseInt(this.value)||200000">
+    <button class="vol-toggle on" id="vol_5m_strong_toggle" onclick="toggleVolAlert('5m','strong')">ON</button>
+  </div>
+</div>
+
+<!-- Williams %R -->
+<div class="section-title">ウィリアムズ%R モニター（1分足）</div>
+<div class="volume-card">
+  <div class="volume-row">
+    <span class="volume-label">現在値（期間14）</span>
+    <span class="volume-val" id="wrDisplay" style="color:var(--muted)">---</span>
+  </div>
+</div>
+<div class="vol-config">
+  <div class="vol-config-row">
+    <span class="vol-input-label">通知しきい値</span>
+    <input class="vol-input" type="number" id="wrThreshInput" value="-90" step="1"
+      onchange="wrThreshold=parseFloat(this.value)||-90">
+    <button class="vol-toggle on" id="wrToggle">ON</button>
+  </div>
+</div>
+
+<!-- Interval -->
+<div class="interval-row">
+  <span>更新間隔</span>
+  <div class="interval-btns">
+    <button class="iv-btn" onclick="setIntervalSec(5)" id="iv5">5秒</button>
+    <button class="iv-btn active" onclick="setIntervalSec(10)" id="iv10">10秒</button>
+    <button class="iv-btn" onclick="setIntervalSec(30)" id="iv30">30秒</button>
+  </div>
+</div>
+
+<!-- Price alerts -->
+<div class="section-title">価格アラート</div>
+<div class="alert-card">
+  <div class="alert-row">
+    <div class="alert-direction">
+      <button class="dir-btn active-above" id="btnAbove" onclick="setDir('above')">↑ 以上</button>
+      <button class="dir-btn" id="btnBelow" onclick="setDir('below')">↓ 以下</button>
+    </div>
+    <div class="price-input-wrap">
+      <span class="currency">$</span>
+      <input class="price-input" type="number" id="alertPrice" placeholder="価格を入力" step="0.01">
+    </div>
+  </div>
+  <button class="add-btn" onclick="addPriceAlert()">＋ 価格アラートを追加</button>
+</div>
+
+<div class="alerts-list" id="alertsList">
+  <div class="empty-state">価格アラートがまだありません</div>
+</div>
+
+<!-- Volume alerts -->
+
+
+<div class="section-title" id="logTitle" style="display:none">通知ログ</div>
+<div class="log-list" id="logList"></div>
+
+<script>
+function toggleWRAlert() {
+  wrAlertEnabled = !wrAlertEnabled;
+  const btn = document.getElementById('wrToggle');
+  if (wrAlertEnabled) {
+    btn.textContent = 'ON';
+    btn.classList.add('on');
+  } else {
+    btn.textContent = 'OFF';
+    btn.classList.remove('on');
+  }
+  console.log('WR alert:', wrAlertEnabled); // デバッグ用
+}
+
+const WEBHOOK_URL = 'https://discord.com/api/webhooks/1516073440233390240/ZTK3wKZIih10jLzj2DB9BWWZKsaxyBZsKmR05lb__EvO31mX4OlQJHdDXgSvORcUMN_P';
+
+// ── 状態 ─────────────────────────────────────────
+let currentPrice = null, prevPrice = null;
+let direction = 'above';
+let priceAlerts = [];
+let intervalMs = 10000, intervalTimer = null;
+let logs = [];
+
+// 出来高アラート設定
+// 1分足: 弱10K / 中50K / 強100K
+// 5分足: 弱70K / 強200K
+let volAlert1m = {
+  weak:   { enabled: true, threshold: 10000,  notified: false, label: '弱', color: 0x38bdf8 },
+  mid:    { enabled: true, threshold: 50000,  notified: false, label: '中', color: 0xf59e0b },
+  strong: { enabled: true, threshold: 100000, notified: false, label: '強', color: 0xff4d6a },
+};
+let volAlert5m = {
+  weak:   { enabled: true, threshold: 70000,  notified: false, label: '弱', color: 0x22d3a0 },
+  strong: { enabled: true, threshold: 200000, notified: false, label: '強', color: 0xff4d6a },
+};
+let lastCandle1mTime = null;
+let lastCandle5mTime = null;
+
+// ウィリアムズ%R
+let wrAlertEnabled = true;
+let wrThreshold = -90;
+let wrNotifiedThisMinute = false;
+
+// ── Discord送信 ───────────────────────────────────
+async function sendDiscord(title, description, color, fields) {
+  try {
+    await fetch(WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ embeds: [{ title, description, color, fields,
+        footer: { text: 'HYPE Alert' },
+        timestamp: new Date().toISOString()
+      }]})
+    });
+  } catch(e) { console.error('Discord送信失敗:', e); }
+}
+
+function playBeep(freq = 880, times = 3) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    for (let i = 0; i < times; i++) {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.frequency.value = freq;
+      const t = ctx.currentTime + i * 0.18;
+      g.gain.setValueAtTime(0.3, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+      o.start(t); o.stop(t + 0.25);
+    }
+  } catch(e) {}
+}
+
+// ── 価格取得 ─────────────────────────────────────
+async function fetchPrice() {
+  try {
+    const res = await fetch('https://api.hyperliquid.xyz/info', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'metaAndAssetCtxs' })
+    });
+    const data = await res.json();
+    const meta = data[0].universe;
+    const ctxs = data[1];
+    const idx = meta.findIndex(a => a.name === 'HYPE');
+    if (idx === -1) return;
+    const ctx = ctxs[idx];
+    const price = parseFloat(ctx.midPx || ctx.markPx);
+    if (!isNaN(price)) { updatePrice(price); setStatus('live', 'ライブ'); }
+  } catch(e) { setStatus('error', 'エラー'); }
+}
+
+function updatePrice(price) {
+  prevPrice = currentPrice;
+  currentPrice = price;
+  const el = document.getElementById('priceDisplay');
+  el.textContent = '$' + price.toFixed(4);
+  if (prevPrice !== null) {
+    el.className = 'price-display ' + (price > prevPrice ? 'up' : price < prevPrice ? 'down' : '');
+    const chg = ((price - prevPrice) / prevPrice * 100);
+    const badge = document.getElementById('changeBadge');
+    badge.textContent = (chg >= 0 ? '+' : '') + chg.toFixed(3) + '%';
+    badge.className = 'change-badge' + (chg < 0 ? ' neg' : '');
+  }
+  document.getElementById('lastUpdate').textContent = '最終更新: ' + new Date().toLocaleTimeString('ja-JP');
+  checkPriceAlerts(price);
+}
+
+// ── ウィリアムズ%R計算 ────────────────────────────
+function calcWilliamsR(highs, lows, closes, period = 14) {
+  if (closes.length < period) return null;
+  const hh = Math.max(...highs.slice(0, period));
+  const ll = Math.min(...lows.slice(0, period));
+  if (hh === ll) return -50;
+  return ((hh - closes[0]) / (hh - ll)) * -100;
+}
+
+// ── 出来高取得 ────────────────────────────────────
+async function fetchVolume() {
+  const end = Date.now();
+  try {
+    // 1分足（直近20本）
+    const r1 = await fetch('https://api.hyperliquid.xyz/info', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ type:'candleSnapshot', req:{ coin:'HYPE', interval:'1m', startTime: end - 25*60*1000, endTime: end }})
+    });
+    const d1 = await r1.json();
+    if (Array.isArray(d1) && d1.length > 0) {
+      const sorted1 = d1.sort((a,b) => b.t - a.t);
+      const latest1 = sorted1[0];
+      const vol1 = parseFloat(latest1.v);
+      const time1 = latest1.t;
+      if (lastCandle1mTime !== null && time1 !== lastCandle1mTime) {
+        Object.values(volAlert1m).forEach(a => a.notified = false);
+        wrNotifiedThisMinute = false;
+      }
+      lastCandle1mTime = time1;
+      updateVolumeDisplay(vol1);
+      await checkVolAlerts1m(vol1);
+      // ウィリアムズ%R（1分足14本）
+      if (sorted1.length >= 14) {
+        const highs  = sorted1.slice(0,14).map(c => parseFloat(c.h));
+        const lows   = sorted1.slice(0,14).map(c => parseFloat(c.l));
+        const closes = sorted1.slice(0,14).map(c => parseFloat(c.c));
+        const wr = calcWilliamsR(highs, lows, closes, 14);
+        updateWRDisplay(wr);
+        if (wr !== null) await checkWRAlert(wr, time1);
+      }
+    }
+  } catch(e) { console.error('1m取得失敗:', e); }
+
+  try {
+    // 5分足（直近10本）
+    const r5 = await fetch('https://api.hyperliquid.xyz/info', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ type:'candleSnapshot', req:{ coin:'HYPE', interval:'5m', startTime: end - 60*60*1000, endTime: end }})
+    });
+    const d5 = await r5.json();
+    if (Array.isArray(d5) && d5.length > 0) {
+      const sorted5 = d5.sort((a,b) => b.t - a.t);
+      const latest5 = sorted5[0];
+      const vol5 = parseFloat(latest5.v);
+      const time5 = latest5.t;
+      if (lastCandle5mTime !== null && time5 !== lastCandle5mTime) {
+        Object.values(volAlert5m).forEach(a => a.notified = false);
+      }
+      lastCandle5mTime = time5;
+      updateVolume5mDisplay(vol5);
+      await checkVolAlerts5m(vol5);
+    }
+  } catch(e) { console.error('5m取得失敗:', e); }
+}
+
+// ── ウィリアムズ%R表示・アラート ─────────────────────
+function updateWRDisplay(wr) {
+  const el = document.getElementById('wrDisplay');
+  if (!el || wr === null) return;
+  el.textContent = wr.toFixed(1);
+  if (wr <= -90) { el.style.color = 'var(--red)'; }
+  else if (wr <= -80) { el.style.color = 'var(--orange)'; }
+  else { el.style.color = 'var(--green)'; }
+}
+
+async function checkWRAlert(wr, candleMinute) {
+  if (wrAlertEnabled === false) return;
+  if (wrNotifiedThisMinute) return;
+  if (wr > wrThreshold) return;
+  wrNotifiedThisMinute = true;
+  playBeep(770, 2);
+  await sendDiscord(
+    '📉 ウィリアムズ%R 売られすぎ！',
+    `1分足ウィリアムズ%Rが **${wrThreshold}** を下回りました
+**底打ち・反発の可能性**`,
+    0xf59e0b,
+    [
+      { name: 'ウィリアムズ%R', value: `**${wr.toFixed(1)}**`, inline: true },
+      { name: '現在価格', value: currentPrice ? `$${currentPrice.toFixed(4)}` : '---', inline: true },
+      { name: 'しきい値', value: `${wrThreshold}`, inline: true },
+    ]
+  );
+  addLog(`📉 WR ${wr.toFixed(1)} (${wrThreshold}以下) → Discord送信済み`, 'orange');
+}
+
+// ── 出来高表示更新 ────────────────────────────────
+function updateVolumeDisplay(vol) {
+  const el = document.getElementById('volDisplay');
+  const bar = document.getElementById('volBar');
+  if (!el) return;
+  const max = volAlert1m.strong.threshold * 1.2;
+  el.textContent = vol >= 1000 ? (vol/1000).toFixed(1)+'K' : Math.floor(vol).toLocaleString();
+  const pct = Math.min((vol / max) * 100, 100);
+  bar.style.width = pct + '%';
+  if (vol >= volAlert1m.strong.threshold) {
+    el.style.color = 'var(--red)'; bar.style.background = 'var(--red)';
+  } else if (vol >= volAlert1m.mid.threshold) {
+    el.style.color = 'var(--orange)'; bar.style.background = 'var(--orange)';
+  } else if (vol >= volAlert1m.weak.threshold) {
+    el.style.color = 'var(--blue)'; bar.style.background = 'var(--blue)';
+  } else {
+    el.style.color = 'var(--muted)'; bar.style.background = 'var(--border)';
+  }
+}
+
+function updateVolume5mDisplay(vol) {
+  const el = document.getElementById('vol5mDisplay');
+  const bar = document.getElementById('vol5mBar');
+  if (!el) return;
+  const max = volAlert5m.strong.threshold * 1.2;
+  el.textContent = vol >= 1000 ? (vol/1000).toFixed(1)+'K' : Math.floor(vol).toLocaleString();
+  const pct = Math.min((vol / max) * 100, 100);
+  bar.style.width = pct + '%';
+  if (vol >= volAlert5m.strong.threshold) {
+    el.style.color = 'var(--red)'; bar.style.background = 'var(--red)';
+  } else if (vol >= volAlert5m.weak.threshold) {
+    el.style.color = 'var(--green)'; bar.style.background = 'var(--green)';
+  } else {
+    el.style.color = 'var(--muted)'; bar.style.background = 'var(--border)';
+  }
+}
+
+// ── 出来高アラートチェック ────────────────────────
+async function checkVolAlerts1m(vol) {
+  for (const [key, cfg] of Object.entries(volAlert1m)) {
+    if (!cfg.enabled || cfg.notified) continue;
+    // 下のしきい値は超えているが上のしきい値はまだ超えていない場合のみ通知
+    const thresholds = [volAlert1m.weak.threshold, volAlert1m.mid.threshold, volAlert1m.strong.threshold];
+    const idx = thresholds.indexOf(cfg.threshold);
+    const nextThresh = idx < thresholds.length - 1 ? thresholds[idx + 1] : Infinity;
+    if (vol < cfg.threshold || vol >= nextThresh) continue;
+    cfg.notified = true;
+    const beepFreq = key === 'strong' ? 880 : key === 'mid' ? 660 : 440;
+    playBeep(beepFreq, key === 'strong' ? 3 : 2);
+    const emoji = key === 'strong' ? '🔥' : key === 'mid' ? '⚡' : '📊';
+    await sendDiscord(
+      `${emoji} 1分足 出来高【${cfg.label}】シグナル`,
+      `1分足の出来高が **${cfg.threshold.toLocaleString()}** を突破`,
+      cfg.color,
+      [
+        { name: '出来高', value: `**${Math.floor(vol).toLocaleString()}**`, inline: true },
+        { name: '現在価格', value: currentPrice ? `$${currentPrice.toFixed(4)}` : '---', inline: true },
+        { name: 'しきい値', value: cfg.threshold.toLocaleString(), inline: true },
+      ]
+    );
+    addLog(`${emoji} 1m出来高【${cfg.label}】${Math.floor(vol).toLocaleString()} → Discord送信済み`, key === 'strong' ? 'red' : key === 'mid' ? 'orange' : 'blue');
+  }
+}
+
+async function checkVolAlerts5m(vol) {
+  for (const [key, cfg] of Object.entries(volAlert5m)) {
+    if (!cfg.enabled || cfg.notified) continue;
+    const thresholds = [volAlert5m.weak.threshold, volAlert5m.strong.threshold];
+    const idx = thresholds.indexOf(cfg.threshold);
+    const nextThresh = idx < thresholds.length - 1 ? thresholds[idx + 1] : Infinity;
+    if (vol < cfg.threshold || vol >= nextThresh) continue;
+    cfg.notified = true;
+    const beepFreq = key === 'strong' ? 880 : 550;
+    playBeep(beepFreq, key === 'strong' ? 3 : 2);
+    const emoji = key === 'strong' ? '🔥' : '📊';
+    await sendDiscord(
+      `${emoji} 5分足 出来高【${cfg.label}】シグナル`,
+      `5分足の出来高が **${cfg.threshold.toLocaleString()}** を突破`,
+      cfg.color,
+      [
+        { name: '出来高', value: `**${Math.floor(vol).toLocaleString()}**`, inline: true },
+        { name: '現在価格', value: currentPrice ? `$${currentPrice.toFixed(4)}` : '---', inline: true },
+        { name: 'しきい値', value: cfg.threshold.toLocaleString(), inline: true },
+      ]
+    );
+    addLog(`${emoji} 5m出来高【${cfg.label}】${Math.floor(vol).toLocaleString()} → Discord送信済み`, key === 'strong' ? 'red' : 'green');
+  }
+}
+
+// ── 価格アラートチェック ──────────────────────────
+async function checkPriceAlerts(price) {
+  for (const a of priceAlerts) {
+    if (a.triggered) continue;
+    const hit = a.dir === 'above' ? price >= a.price : price <= a.price;
+    if (!hit) continue;
+    a.triggered = true;
+    renderAlerts();
+    const emoji = a.dir === 'above' ? '📈' : '📉';
+    const dirText = a.dir === 'above' ? '上抜け' : '下抜け';
+    playBeep(880, 3);
+    await sendDiscord(
+      `${emoji} HYPE 価格アラート発動！`,
+      `**${dirText}** $${a.price.toFixed(4)} を検知しました`,
+      a.dir === 'above' ? 0x22d3a0 : 0xff4d6a,
+      [
+        { name: '現在価格', value: `**$${price.toFixed(4)}**`, inline: true },
+        { name: 'アラート価格', value: `$${a.price.toFixed(4)}`, inline: true },
+      ]
+    );
+    addLog(`${emoji} ${dirText} $${a.price.toFixed(4)} → Discord送信済み`, a.dir === 'above' ? 'green' : 'red');
+  }
+}
+
+// ── 出来高アラート ON/OFF ─────────────────────────
+function toggleVolAlert(tf, key) {
+  const cfg = tf === '1m' ? volAlert1m[key] : volAlert5m[key];
+  cfg.enabled = !cfg.enabled;
+  const btn = document.getElementById(`vol_${tf}_${key}_toggle`);
+  btn.textContent = cfg.enabled ? 'ON' : 'OFF';
+  btn.className = 'vol-toggle ' + (cfg.enabled ? 'on' : '');
+}
+
+// ── UI helpers ────────────────────────────────────
+function setDir(d) {
+  direction = d;
+  document.getElementById('btnAbove').className = d === 'above' ? 'dir-btn active-above' : 'dir-btn';
+  document.getElementById('btnBelow').className = d === 'below' ? 'dir-btn active-below' : 'dir-btn';
+}
+
+function addPriceAlert() {
+  const val = parseFloat(document.getElementById('alertPrice').value);
+  if (isNaN(val) || val <= 0) { alert('有効な価格を入力してください'); return; }
+  priceAlerts.push({ price: val, dir: direction, triggered: false, id: Date.now() });
+  document.getElementById('alertPrice').value = '';
+  renderAlerts();
+}
+
+function deleteAlert(id) {
+  priceAlerts = priceAlerts.filter(a => a.id !== id);
+  renderAlerts();
+}
+
+function renderAlerts() {
+  const el = document.getElementById('alertsList');
+  if (priceAlerts.length === 0) {
+    el.innerHTML = '<div class="empty-state">価格アラートがまだありません</div>';
+    return;
+  }
+  el.innerHTML = priceAlerts.map(a => `
+    <div class="alert-item ${a.triggered ? 'triggered' : ''}">
+      <div class="alert-item-left">
+        <div class="alert-arrow ${a.dir}">
+          ${a.dir === 'above' ? '<span style="color:var(--green)">↑</span>' : '<span style="color:var(--red)">↓</span>'}
+        </div>
+        <div class="alert-info">
+          <div class="price" style="color:${a.dir==='above'?'var(--green)':'var(--red)'}">$${a.price.toFixed(4)}</div>
+          <div class="desc">${a.dir==='above'?'以上':'以下'}になったら通知${a.triggered?' · ✓ 発動済み':''}</div>
+        </div>
+      </div>
+      <button class="delete-btn" onclick="deleteAlert(${a.id})">✕</button>
+    </div>`).join('');
+}
+
+function addLog(msg, type = '') {
+  logs.unshift({ time: new Date().toLocaleTimeString('ja-JP'), msg, type });
+  if (logs.length > 10) logs.pop();
+  renderLogs();
+}
+
+function renderLogs() {
+  const el = document.getElementById('logList');
+  const title = document.getElementById('logTitle');
+  if (logs.length === 0) { el.innerHTML = ''; title.style.display = 'none'; return; }
+  title.style.display = 'block';
+  el.innerHTML = logs.map(l => `<div class="log-item log-${l.type}">[${l.time}] ${l.msg}</div>`).join('');
+}
+
+function setStatus(type, text) {
+  document.getElementById('statusDot').className = 'status-dot ' + type;
+  document.getElementById('statusText').textContent = text;
+}
+
+function setIntervalSec(sec) {
+  intervalMs = sec * 1000;
+  ['5','10','30'].forEach(s => document.getElementById('iv'+s).classList.remove('active'));
+  document.getElementById('iv'+sec).classList.add('active');
+  // WR toggle
+
+
+document.getElementById('wrToggle').addEventListener('click', toggleWRAlert);
+
+restartTimer();
+}
+
+function restartTimer() {
+  if (intervalTimer) clearInterval(intervalTimer);
+  fetchPrice();
+  fetchVolume();
+  intervalTimer = setInterval(() => { fetchPrice(); fetchVolume(); }, intervalMs);
+}
+
+// 出来高しきい値の入力変更を反映
+// vol input listeners handled inline
+
+restartTimer();
+</script>
+</body>
+</html>
