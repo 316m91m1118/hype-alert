@@ -10,6 +10,7 @@
     --bg:#0a0b0f; --surface:#12141a; --surface2:#1a1d26; --border:#252836;
     --accent:#7c5cfc; --accent-glow:rgba(124,92,252,0.25);
     --green:#22d3a0; --red:#ff4d6a; --orange:#f59e0b; --blue:#38bdf8;
+    --purple:#a78bfa;
     --text:#e8eaf0; --muted:#6b7280; --label:#9ca3af;
   }
   *{box-sizing:border-box;margin:0;padding:0;}
@@ -77,13 +78,21 @@
   .vol-input-label{font-size:12px;color:var(--muted);white-space:nowrap;flex:1;}
   .vol-toggle{padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--muted);font-size:12px;font-weight:600;cursor:pointer;font-family:'Space Grotesk',sans-serif;white-space:nowrap;}
   .vol-toggle.on{background:rgba(34,211,160,0.15);border-color:var(--green);color:var(--green);}
+  .indic-card{width:100%;max-width:480px;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:16px 20px;margin-bottom:16px;}
+  .indic-row{display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);}
+  .indic-row:last-child{border-bottom:none;padding-bottom:0;}
+  .indic-label{font-size:12px;color:var(--muted);}
+  .indic-val{font-family:'Space Mono',monospace;font-size:14px;font-weight:700;}
   .log-list{width:100%;max-width:480px;display:flex;flex-direction:column;gap:6px;margin-bottom:24px;}
   .log-item{font-size:12px;color:var(--muted);padding:8px 12px;background:var(--surface);border-radius:8px;border-left:3px solid var(--accent);font-family:'Space Mono',monospace;}
   .log-item.log-red{border-left-color:var(--red);}
   .log-item.log-green{border-left-color:var(--green);}
   .log-item.log-orange{border-left-color:var(--orange);}
   .log-item.log-blue{border-left-color:var(--blue);}
+  .log-item.log-purple{border-left-color:var(--purple);}
   .empty-state{text-align:center;color:var(--muted);font-size:13px;padding:20px;}
+  .sound-banner{width:100%;max-width:480px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:12px;padding:12px 16px;font-size:12px;color:var(--orange);display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:16px;}
+  .sound-init-btn{padding:6px 14px;background:var(--orange);border:none;border-radius:6px;color:#000;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;}
 </style>
 </head>
 <body>
@@ -101,6 +110,13 @@
   <span>Discord通知: <span class="discord-ok">✓ 設定済み</span></span>
 </div>
 
+<!-- 音声初期化バナー -->
+<div class="sound-banner" id="soundBanner">
+  <span>🔔 最初にここをタップして音声を有効化してください</span>
+  <button class="sound-init-btn" onclick="initAudio()">音声を有効化</button>
+</div>
+
+<!-- Price -->
 <div class="price-card">
   <div class="token-row">
     <div class="token-icon">HYPE</div>
@@ -123,6 +139,37 @@
   </div>
 </div>
 
+<!-- インジケーター表示 -->
+<div class="section-title">インジケーター（1分足）</div>
+<div class="indic-card">
+  <div class="indic-row">
+    <span class="indic-label">RSI (14)</span>
+    <span class="indic-val" id="rsiDisplay" style="color:var(--muted)">---</span>
+  </div>
+  <div class="indic-row">
+    <span class="indic-label">CVD（直近20本累積）</span>
+    <span class="indic-val" id="cvdDisplay" style="color:var(--muted)">---</span>
+  </div>
+  <div class="indic-row">
+    <span class="indic-label">ウィリアムズ%R (14)</span>
+    <span class="indic-val" id="wrDisplay" style="color:var(--muted)">---</span>
+  </div>
+</div>
+
+<!-- ダイバージェンス設定 -->
+<div class="section-title">ダイバージェンス アラート</div>
+<div class="vol-config">
+  <div class="vol-config-row">
+    <span class="vol-input-label">📐 RSIダイバージェンス（1m）</span>
+    <button class="vol-toggle on" id="btn_rsi_div">ON</button>
+  </div>
+  <div class="vol-config-row">
+    <span class="vol-input-label">📐 CVDダイバージェンス（1m）</span>
+    <button class="vol-toggle on" id="btn_cvd_div">ON</button>
+  </div>
+</div>
+
+<!-- 1分足 出来高 -->
 <div class="section-title">1分足 出来高モニター</div>
 <div class="volume-card">
   <div class="volume-row">
@@ -132,7 +179,7 @@
   <div class="volume-bar-wrap"><div class="volume-bar" id="vol1mBar" style="width:0%"></div></div>
   <div class="volume-thresholds">
     <span>0</span>
-    <span style="color:var(--blue)">▲ 10K</span>
+    <span style="color:var(--blue)">▲ 25K</span>
     <span style="color:var(--orange)">▲ 50K</span>
     <span style="color:var(--red)">▲ 100K</span>
   </div>
@@ -140,7 +187,7 @@
 <div class="vol-config">
   <div class="vol-config-row">
     <span class="vol-input-label">📊 弱（1m）</span>
-    <input class="vol-input" type="number" id="th_1m_w" value="10000" step="1000">
+    <input class="vol-input" type="number" id="th_1m_w" value="25000" step="1000">
     <button class="vol-toggle on" id="btn_1m_w">ON</button>
   </div>
   <div class="vol-config-row">
@@ -155,6 +202,7 @@
   </div>
 </div>
 
+<!-- 5分足 出来高 -->
 <div class="section-title">5分足 出来高モニター</div>
 <div class="volume-card">
   <div class="volume-row">
@@ -181,13 +229,8 @@
   </div>
 </div>
 
-<div class="section-title">ウィリアムズ%R モニター（1分足）</div>
-<div class="volume-card">
-  <div class="volume-row">
-    <span class="volume-label">現在値（期間14）</span>
-    <span class="volume-val" id="wrDisplay" style="color:var(--muted)">---</span>
-  </div>
-</div>
+<!-- ウィリアムズ%R -->
+<div class="section-title">ウィリアムズ%R アラート</div>
 <div class="vol-config">
   <div class="vol-config-row">
     <span class="vol-input-label">通知しきい値</span>
@@ -196,6 +239,7 @@
   </div>
 </div>
 
+<!-- 価格アラート -->
 <div class="section-title">価格アラート</div>
 <div class="alert-card">
   <div class="alert-row">
@@ -220,54 +264,100 @@
 <script>
 const WEBHOOK_URL = 'https://discord.com/api/webhooks/1516073440233390240/ZTK3wKZIih10jLzj2DB9BWWZKsaxyBZsKmR05lb__EvO31mX4OlQJHdDXgSvORcUMN_P';
 
+// ── 音声コンテキスト（ページ全体で1つ使い回す） ────
+var audioCtx = null;
+
+function initAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+  // 無音ビープで「使用中」状態を維持
+  playSilent();
+  document.getElementById('soundBanner').style.display = 'none';
+  // 30秒ごとに無音ビープを鳴らしてコンテキストを維持
+  setInterval(playSilent, 30000);
+}
+
+function playSilent() {
+  if (!audioCtx) return;
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  var o = audioCtx.createOscillator();
+  var g = audioCtx.createGain();
+  o.connect(g); g.connect(audioCtx.destination);
+  g.gain.setValueAtTime(0.0001, audioCtx.currentTime); // ほぼ無音
+  o.start(audioCtx.currentTime);
+  o.stop(audioCtx.currentTime + 0.1);
+}
+
+function playBeep(freq, times) {
+  if (!audioCtx) return;
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  for (var i = 0; i < times; i++) {
+    var o = audioCtx.createOscillator();
+    var g = audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    o.frequency.value = freq;
+    var t = audioCtx.currentTime + i * 0.18;
+    g.gain.setValueAtTime(0.3, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
+    o.start(t); o.stop(t + 0.25);
+  }
+}
+
 // ── 状態 ─────────────────────────────────────────
-let currentPrice = null, prevPrice = null;
-let direction = 'above';
-let priceAlerts = [];
-let intervalMs = 10000, intervalTimer = null;
-let logs = [];
-let lastCandle1mTime = null, lastCandle5mTime = null;
-let wrNotifiedThisMinute = false;
+var currentPrice = null, prevPrice = null;
+var direction = 'above';
+var priceAlerts = [];
+var intervalMs = 10000, intervalTimer = null;
+var logs = [];
+var lastCandle1mTime = null, lastCandle5mTime = null;
+var wrNotifiedThisMinute = false;
 
-// ── アラート設定（ON/OFF・しきい値） ──────────────
-const alertCfg = {
-  vol1m_w: { on: true, th: 10000 },
-  vol1m_m: { on: true, th: 50000 },
-  vol1m_s: { on: true, th: 100000 },
-  vol5m_w: { on: true, th: 70000 },
-  vol5m_s: { on: true, th: 200000 },
-  wr:      { on: true, th: -90 }
+// アラート設定
+var alertCfg = {
+  vol1m_w:  { on:true, th:25000 },
+  vol1m_m:  { on:true, th:50000 },
+  vol1m_s:  { on:true, th:100000 },
+  vol5m_w:  { on:true, th:70000 },
+  vol5m_s:  { on:true, th:200000 },
+  wr:       { on:true, th:-90 },
+  rsi_div:  { on:true },
+  cvd_div:  { on:true }
 };
-let vol1mNotified = { w: false, m: false, s: false };
-let vol5mNotified = { w: false, s: false };
+var vol1mNotified = { w:false, m:false, s:false };
+var vol5mNotified = { w:false, s:false };
 
-// ── ボタン初期化（DOMロード後） ────────────────────
+// ダイバージェンス検知用の履歴（1分足直近20本）
+var divHistory = []; // { price, rsi, cvd }
+var lastDivNotify = { rsi_bull:0, rsi_bear:0, cvd_bull:0, cvd_bear:0 };
+var DIV_COOLDOWN = 10 * 60 * 1000; // 10分
+
+// ── ボタン初期化 ──────────────────────────────────
 window.addEventListener('DOMContentLoaded', function() {
-  // 出来高ボタン
-  [['btn_1m_w','vol1m_w'],['btn_1m_m','vol1m_m'],['btn_1m_s','vol1m_s'],
-   ['btn_5m_w','vol5m_w'],['btn_5m_s','vol5m_s']].forEach(function(pair) {
-    var btnId = pair[0], key = pair[1];
-    document.getElementById(btnId).addEventListener('click', function() {
+  var btnMap = [
+    ['btn_1m_w','vol1m_w'],['btn_1m_m','vol1m_m'],['btn_1m_s','vol1m_s'],
+    ['btn_5m_w','vol5m_w'],['btn_5m_s','vol5m_s'],
+    ['btn_wr','wr'],['btn_rsi_div','rsi_div'],['btn_cvd_div','cvd_div']
+  ];
+  btnMap.forEach(function(pair) {
+    var btn = document.getElementById(pair[0]);
+    var key = pair[1];
+    btn.addEventListener('click', function() {
       alertCfg[key].on = !alertCfg[key].on;
       this.textContent = alertCfg[key].on ? 'ON' : 'OFF';
       this.className = 'vol-toggle' + (alertCfg[key].on ? ' on' : '');
     });
   });
 
-  // WRボタン
-  document.getElementById('btn_wr').addEventListener('click', function() {
-    alertCfg.wr.on = !alertCfg.wr.on;
-    this.textContent = alertCfg.wr.on ? 'ON' : 'OFF';
-    this.className = 'vol-toggle' + (alertCfg.wr.on ? ' on' : '');
-  });
-
-  // しきい値入力
-  document.getElementById('th_1m_w').addEventListener('change', function() { alertCfg.vol1m_w.th = parseInt(this.value)||10000; });
-  document.getElementById('th_1m_m').addEventListener('change', function() { alertCfg.vol1m_m.th = parseInt(this.value)||50000; });
-  document.getElementById('th_1m_s').addEventListener('change', function() { alertCfg.vol1m_s.th = parseInt(this.value)||100000; });
-  document.getElementById('th_5m_w').addEventListener('change', function() { alertCfg.vol5m_w.th = parseInt(this.value)||70000; });
-  document.getElementById('th_5m_s').addEventListener('change', function() { alertCfg.vol5m_s.th = parseInt(this.value)||200000; });
-  document.getElementById('th_wr').addEventListener('change',   function() { alertCfg.wr.th = parseFloat(this.value)||-90; });
+  document.getElementById('th_1m_w').addEventListener('change', function(){ alertCfg.vol1m_w.th = parseInt(this.value)||25000; });
+  document.getElementById('th_1m_m').addEventListener('change', function(){ alertCfg.vol1m_m.th = parseInt(this.value)||50000; });
+  document.getElementById('th_1m_s').addEventListener('change', function(){ alertCfg.vol1m_s.th = parseInt(this.value)||100000; });
+  document.getElementById('th_5m_w').addEventListener('change', function(){ alertCfg.vol5m_w.th = parseInt(this.value)||70000; });
+  document.getElementById('th_5m_s').addEventListener('change', function(){ alertCfg.vol5m_s.th = parseInt(this.value)||200000; });
+  document.getElementById('th_wr').addEventListener('change',   function(){ alertCfg.wr.th = parseFloat(this.value)||-90; });
 
   restartTimer();
 });
@@ -276,26 +366,10 @@ window.addEventListener('DOMContentLoaded', function() {
 async function sendDiscord(title, desc, color, fields) {
   try {
     await fetch(WEBHOOK_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ embeds: [{ title, description: desc, color, fields,
-        footer: { text: 'HYPE Alert' }, timestamp: new Date().toISOString() }]})
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ embeds:[{ title, description:desc, color, fields,
+        footer:{text:'HYPE Alert'}, timestamp:new Date().toISOString() }]})
     });
-  } catch(e) {}
-}
-
-function playBeep(freq, times) {
-  try {
-    var ctx = new (window.AudioContext || window.webkitAudioContext)();
-    for (var i = 0; i < times; i++) {
-      var o = ctx.createOscillator(), g = ctx.createGain();
-      o.connect(g); g.connect(ctx.destination);
-      o.frequency.value = freq;
-      var t = ctx.currentTime + i * 0.18;
-      g.gain.setValueAtTime(0.3, t);
-      g.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
-      o.start(t); o.stop(t + 0.25);
-    }
   } catch(e) {}
 }
 
@@ -303,14 +377,14 @@ function playBeep(freq, times) {
 async function fetchPrice() {
   try {
     var res = await fetch('https://api.hyperliquid.xyz/info', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ type: 'metaAndAssetCtxs' })
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ type:'metaAndAssetCtxs' })
     });
     var data = await res.json();
     var meta = data[0].universe;
     var ctxs = data[1];
-    var idx = meta.findIndex(function(a){ return a.name === 'HYPE'; });
-    if (idx === -1) return;
+    var idx = meta.findIndex(function(a){ return a.name==='HYPE'; });
+    if (idx===-1) return;
     var price = parseFloat(ctxs[idx].midPx || ctxs[idx].markPx);
     if (!isNaN(price)) { updatePrice(price); setStatus('live','ライブ'); }
   } catch(e) { setStatus('error','エラー'); }
@@ -332,13 +406,158 @@ function updatePrice(price) {
   checkPriceAlerts(price);
 }
 
-// ── 出来高・WR取得 ────────────────────────────────
+// ── インジケーター計算 ────────────────────────────
+
+// RSI(14)
+function calcRSI(closes) {
+  // closes: 新しい順の配列 → 古い順に直して計算
+  var c = closes.slice().reverse();
+  if (c.length < 15) return null;
+  var gains = 0, losses = 0;
+  for (var i = 1; i <= 14; i++) {
+    var diff = c[i] - c[i-1];
+    if (diff >= 0) gains += diff; else losses -= diff;
+  }
+  var avgGain = gains / 14;
+  var avgLoss = losses / 14;
+  for (var i = 15; i < c.length; i++) {
+    var diff = c[i] - c[i-1];
+    var g = diff > 0 ? diff : 0;
+    var l = diff < 0 ? -diff : 0;
+    avgGain = (avgGain * 13 + g) / 14;
+    avgLoss = (avgLoss * 13 + l) / 14;
+  }
+  if (avgLoss === 0) return 100;
+  var rs = avgGain / avgLoss;
+  return 100 - (100 / (1 + rs));
+}
+
+// CVD: 各ローソク足の (close-low)/(high-low) * volume - (high-close)/(high-low) * volume を累積
+// 簡易版: close > open なら買い出来高、close < open なら売り出来高
+function calcCVD(candles) {
+  // candles: 新しい順 → 古い順に処理して累積
+  var total = 0;
+  for (var i = candles.length - 1; i >= 0; i--) {
+    var c = candles[i];
+    var high = parseFloat(c.h), low = parseFloat(c.l);
+    var close = parseFloat(c.c), vol = parseFloat(c.v);
+    var range = high - low;
+    if (range === 0) continue;
+    // 買い圧力の割合: (close - low) / range
+    var buyRatio = (close - low) / range;
+    total += (buyRatio * 2 - 1) * vol; // -1〜+1 の範囲でスケール
+  }
+  return total;
+}
+
+// ウィリアムズ%R
+function calcWR(highs, lows, closes) {
+  var hh = Math.max.apply(null, highs);
+  var ll = Math.min.apply(null, lows);
+  if (hh === ll) return -50;
+  return ((hh - closes[0]) / (hh - ll)) * -100;
+}
+
+// ── ダイバージェンス検知 ──────────────────────────
+// 直近20本の履歴から、価格の安値/高値とRSI/CVDの安値/高値を比較
+function checkDivergence(candles) {
+  if (candles.length < 5) return;
+  var now = Date.now();
+
+  // 直近5本分の価格・RSI・CVDを計算
+  var pts = [];
+  for (var i = 0; i < Math.min(5, candles.length - 15); i++) {
+    var slice = candles.slice(i); // i番目が最新
+    var closes = slice.map(function(c){ return parseFloat(c.c); });
+    var highs  = slice.map(function(c){ return parseFloat(c.h); });
+    var lows   = slice.map(function(c){ return parseFloat(c.l); });
+    var rsi = calcRSI(closes);
+    var cvd = calcCVD(slice.slice(0, 20));
+    pts.push({
+      price: parseFloat(candles[i].c),
+      low:   parseFloat(candles[i].l),
+      high:  parseFloat(candles[i].h),
+      rsi:   rsi,
+      cvd:   cvd
+    });
+  }
+  if (pts.length < 3) return;
+
+  var latest = pts[0];  // 最新
+  var prev   = pts[2];  // 2本前
+
+  // ── RSIダイバージェンス ──
+  if (alertCfg.rsi_div.on && latest.rsi !== null && prev.rsi !== null) {
+    // 強気ダイバージェンス: 価格が安値更新 → RSIは安値更新せず
+    if (latest.low < prev.low && latest.rsi > prev.rsi) {
+      if (now - lastDivNotify.rsi_bull > DIV_COOLDOWN) {
+        lastDivNotify.rsi_bull = now;
+        playBeep(600, 3);
+        sendDiscord('📐 RSI 強気ダイバージェンス！',
+          '価格が安値を更新しましたが、RSIは安値を更新しませんでした\n**反発・上昇の可能性**',
+          0xa78bfa,
+          [{name:'価格安値',value:'$'+latest.low.toFixed(4),inline:true},
+           {name:'RSI',value:latest.rsi.toFixed(1),inline:true},
+           {name:'現在価格',value:currentPrice?'$'+currentPrice.toFixed(4):'---',inline:true}]);
+        addLog('📐 RSI強気ダイバージェンス → Discord送信済み', 'purple');
+      }
+    }
+    // 弱気ダイバージェンス: 価格が高値更新 → RSIは高値更新せず
+    if (latest.high > prev.high && latest.rsi < prev.rsi) {
+      if (now - lastDivNotify.rsi_bear > DIV_COOLDOWN) {
+        lastDivNotify.rsi_bear = now;
+        playBeep(400, 3);
+        sendDiscord('📐 RSI 弱気ダイバージェンス！',
+          '価格が高値を更新しましたが、RSIは高値を更新しませんでした\n**反落・下落の可能性**',
+          0xff4d6a,
+          [{name:'価格高値',value:'$'+latest.high.toFixed(4),inline:true},
+           {name:'RSI',value:latest.rsi.toFixed(1),inline:true},
+           {name:'現在価格',value:currentPrice?'$'+currentPrice.toFixed(4):'---',inline:true}]);
+        addLog('📐 RSI弱気ダイバージェンス → Discord送信済み', 'red');
+      }
+    }
+  }
+
+  // ── CVDダイバージェンス ──
+  if (alertCfg.cvd_div.on && latest.cvd !== null && prev.cvd !== null) {
+    // 強気ダイバージェンス: 価格が安値更新 → CVDは安値更新せず（買い圧力が底堅い）
+    if (latest.low < prev.low && latest.cvd > prev.cvd) {
+      if (now - lastDivNotify.cvd_bull > DIV_COOLDOWN) {
+        lastDivNotify.cvd_bull = now;
+        playBeep(650, 3);
+        sendDiscord('📐 CVD 強気ダイバージェンス！',
+          '価格が安値を更新しましたが、CVD（買い圧力）は安値を更新しませんでした\n**買い勢力の底堅さ・反発の可能性**',
+          0x22d3a0,
+          [{name:'価格安値',value:'$'+latest.low.toFixed(4),inline:true},
+           {name:'CVD',value:latest.cvd.toFixed(0),inline:true},
+           {name:'現在価格',value:currentPrice?'$'+currentPrice.toFixed(4):'---',inline:true}]);
+        addLog('📐 CVD強気ダイバージェンス → Discord送信済み', 'green');
+      }
+    }
+    // 弱気ダイバージェンス: 価格が高値更新 → CVDは高値更新せず（売り圧力が増加）
+    if (latest.high > prev.high && latest.cvd < prev.cvd) {
+      if (now - lastDivNotify.cvd_bear > DIV_COOLDOWN) {
+        lastDivNotify.cvd_bear = now;
+        playBeep(350, 3);
+        sendDiscord('📐 CVD 弱気ダイバージェンス！',
+          '価格が高値を更新しましたが、CVD（買い圧力）は高値を更新しませんでした\n**売り圧力増加・下落の可能性**',
+          0xf59e0b,
+          [{name:'価格高値',value:'$'+latest.high.toFixed(4),inline:true},
+           {name:'CVD',value:latest.cvd.toFixed(0),inline:true},
+           {name:'現在価格',value:currentPrice?'$'+currentPrice.toFixed(4):'---',inline:true}]);
+        addLog('📐 CVD弱気ダイバージェンス → Discord送信済み', 'orange');
+      }
+    }
+  }
+}
+
+// ── 出来高・インジケーター取得 ────────────────────
 async function fetchVolume() {
   var end = Date.now();
   try {
     var r1 = await fetch('https://api.hyperliquid.xyz/info', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ type:'candleSnapshot', req:{ coin:'HYPE', interval:'1m', startTime: end-25*60*1000, endTime: end }})
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ type:'candleSnapshot', req:{ coin:'HYPE', interval:'1m', startTime:end-40*60*1000, endTime:end }})
     });
     var d1 = await r1.json();
     if (Array.isArray(d1) && d1.length > 0) {
@@ -351,23 +570,50 @@ async function fetchVolume() {
         wrNotifiedThisMinute = false;
       }
       lastCandle1mTime = t1;
-      updateVolDisplay('vol1mDisplay','vol1mBar', vol1,
+
+      // 出来高表示
+      updateVolDisplay('vol1mDisplay','vol1mBar',vol1,
         alertCfg.vol1m_w.th, alertCfg.vol1m_m.th, alertCfg.vol1m_s.th);
       await checkVol1m(vol1);
+
+      // RSI
+      if (s1.length >= 20) {
+        var closes = s1.slice(0,20).map(function(c){ return parseFloat(c.c); });
+        var rsi = calcRSI(closes);
+        var rsiEl = document.getElementById('rsiDisplay');
+        if (rsi !== null) {
+          rsiEl.textContent = rsi.toFixed(1);
+          rsiEl.style.color = rsi >= 70 ? 'var(--red)' : rsi <= 30 ? 'var(--green)' : 'var(--text)';
+        }
+
+        // CVD
+        var cvd = calcCVD(s1.slice(0,20));
+        var cvdEl = document.getElementById('cvdDisplay');
+        cvdEl.textContent = cvd >= 0 ? '+'+Math.floor(cvd).toLocaleString() : Math.floor(cvd).toLocaleString();
+        cvdEl.style.color = cvd >= 0 ? 'var(--green)' : 'var(--red)';
+
+        // ダイバージェンス検知
+        checkDivergence(s1);
+      }
+
+      // ウィリアムズ%R
       if (s1.length >= 14) {
         var highs  = s1.slice(0,14).map(function(c){ return parseFloat(c.h); });
         var lows   = s1.slice(0,14).map(function(c){ return parseFloat(c.l); });
-        var closes = s1.slice(0,14).map(function(c){ return parseFloat(c.c); });
-        var wr = calcWR(highs, lows, closes);
-        updateWRDisplay(wr);
+        var closes14 = s1.slice(0,14).map(function(c){ return parseFloat(c.c); });
+        var wr = calcWR(highs, lows, closes14);
+        var wrEl = document.getElementById('wrDisplay');
+        wrEl.textContent = wr.toFixed(1);
+        wrEl.style.color = wr <= -90 ? 'var(--red)' : wr <= -80 ? 'var(--orange)' : 'var(--green)';
         await checkWR(wr);
       }
     }
   } catch(e) {}
+
   try {
     var r5 = await fetch('https://api.hyperliquid.xyz/info', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ type:'candleSnapshot', req:{ coin:'HYPE', interval:'5m', startTime: end-60*60*1000, endTime: end }})
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ type:'candleSnapshot', req:{ coin:'HYPE', interval:'5m', startTime:end-60*60*1000, endTime:end }})
     });
     var d5 = await r5.json();
     if (Array.isArray(d5) && d5.length > 0) {
@@ -378,18 +624,11 @@ async function fetchVolume() {
         vol5mNotified = { w:false, s:false };
       }
       lastCandle5mTime = t5;
-      updateVolDisplay('vol5mDisplay','vol5mBar', vol5,
+      updateVolDisplay('vol5mDisplay','vol5mBar',vol5,
         alertCfg.vol5m_w.th, null, alertCfg.vol5m_s.th);
       await checkVol5m(vol5);
     }
   } catch(e) {}
-}
-
-function calcWR(highs, lows, closes) {
-  var hh = Math.max.apply(null, highs);
-  var ll = Math.min.apply(null, lows);
-  if (hh === ll) return -50;
-  return ((hh - closes[0]) / (hh - ll)) * -100;
 }
 
 function updateVolDisplay(dispId, barId, vol, th1, th2, th3) {
@@ -399,38 +638,26 @@ function updateVolDisplay(dispId, barId, vol, th1, th2, th3) {
   el.textContent = vol >= 1000 ? (vol/1000).toFixed(1)+'K' : Math.floor(vol);
   var max = th3 * 1.2;
   bar.style.width = Math.min((vol/max)*100, 100) + '%';
-  if (vol >= th3) {
-    el.style.color='var(--red)'; bar.style.background='var(--red)';
-  } else if (th2 && vol >= th2) {
-    el.style.color='var(--orange)'; bar.style.background='var(--orange)';
-  } else if (vol >= th1) {
-    el.style.color='var(--blue)'; bar.style.background='var(--blue)';
-  } else {
-    el.style.color='var(--muted)'; bar.style.background='var(--border)';
-  }
-}
-
-function updateWRDisplay(wr) {
-  var el = document.getElementById('wrDisplay');
-  if (!el) return;
-  el.textContent = wr.toFixed(1);
-  el.style.color = wr <= -90 ? 'var(--red)' : wr <= -80 ? 'var(--orange)' : 'var(--green)';
+  if (vol >= th3)       { el.style.color='var(--red)';    bar.style.background='var(--red)'; }
+  else if (th2 && vol >= th2) { el.style.color='var(--orange)'; bar.style.background='var(--orange)'; }
+  else if (vol >= th1)  { el.style.color='var(--blue)';   bar.style.background='var(--blue)'; }
+  else                  { el.style.color='var(--muted)';  bar.style.background='var(--border)'; }
 }
 
 async function checkVol1m(vol) {
   var cfgs = [
-    { key:'w', cfg:alertCfg.vol1m_w, next:alertCfg.vol1m_m.th, emoji:'📊', label:'弱', color:0x38bdf8, beep:440, beepN:2 },
-    { key:'m', cfg:alertCfg.vol1m_m, next:alertCfg.vol1m_s.th, emoji:'⚡', label:'中', color:0xf59e0b, beep:660, beepN:2 },
-    { key:'s', cfg:alertCfg.vol1m_s, next:Infinity,             emoji:'🔥', label:'強', color:0xff4d6a, beep:880, beepN:3 }
+    {key:'w', th:alertCfg.vol1m_w, next:alertCfg.vol1m_m.th, emoji:'📊', label:'弱', color:0x38bdf8, beep:440, n:2},
+    {key:'m', th:alertCfg.vol1m_m, next:alertCfg.vol1m_s.th, emoji:'⚡', label:'中', color:0xf59e0b, beep:660, n:2},
+    {key:'s', th:alertCfg.vol1m_s, next:Infinity,             emoji:'🔥', label:'強', color:0xff4d6a, beep:880, n:3}
   ];
   for (var i=0; i<cfgs.length; i++) {
-    var c = cfgs[i];
-    if (!c.cfg.on || vol1mNotified[c.key]) continue;
-    if (vol < c.cfg.th || vol >= c.next) continue;
-    vol1mNotified[c.key] = true;
-    playBeep(c.beep, c.beepN);
+    var c=cfgs[i];
+    if (!c.th.on || vol1mNotified[c.key]) continue;
+    if (vol < c.th.th || vol >= c.next) continue;
+    vol1mNotified[c.key]=true;
+    playBeep(c.beep,c.n);
     await sendDiscord(c.emoji+' 1分足 出来高【'+c.label+'】シグナル',
-      '1分足の出来高が **'+c.cfg.th.toLocaleString()+'** を突破', c.color,
+      '1分足の出来高が **'+c.th.th.toLocaleString()+'** を突破', c.color,
       [{name:'出来高',value:'**'+Math.floor(vol).toLocaleString()+'**',inline:true},
        {name:'現在価格',value:currentPrice?'$'+currentPrice.toFixed(4):'---',inline:true}]);
     addLog(c.emoji+' 1m出来高【'+c.label+'】'+Math.floor(vol).toLocaleString()+' → Discord送信済み',
@@ -440,17 +667,17 @@ async function checkVol1m(vol) {
 
 async function checkVol5m(vol) {
   var cfgs = [
-    { key:'w', cfg:alertCfg.vol5m_w, next:alertCfg.vol5m_s.th, emoji:'📊', label:'弱', color:0x22d3a0, beep:550, beepN:2 },
-    { key:'s', cfg:alertCfg.vol5m_s, next:Infinity,             emoji:'🔥', label:'強', color:0xff4d6a, beep:880, beepN:3 }
+    {key:'w', th:alertCfg.vol5m_w, next:alertCfg.vol5m_s.th, emoji:'📊', label:'弱', color:0x22d3a0, beep:550, n:2},
+    {key:'s', th:alertCfg.vol5m_s, next:Infinity,             emoji:'🔥', label:'強', color:0xff4d6a, beep:880, n:3}
   ];
   for (var i=0; i<cfgs.length; i++) {
-    var c = cfgs[i];
-    if (!c.cfg.on || vol5mNotified[c.key]) continue;
-    if (vol < c.cfg.th || vol >= c.next) continue;
-    vol5mNotified[c.key] = true;
-    playBeep(c.beep, c.beepN);
+    var c=cfgs[i];
+    if (!c.th.on || vol5mNotified[c.key]) continue;
+    if (vol < c.th.th || vol >= c.next) continue;
+    vol5mNotified[c.key]=true;
+    playBeep(c.beep,c.n);
     await sendDiscord(c.emoji+' 5分足 出来高【'+c.label+'】シグナル',
-      '5分足の出来高が **'+c.cfg.th.toLocaleString()+'** を突破', c.color,
+      '5分足の出来高が **'+c.th.th.toLocaleString()+'** を突破', c.color,
       [{name:'出来高',value:'**'+Math.floor(vol).toLocaleString()+'**',inline:true},
        {name:'現在価格',value:currentPrice?'$'+currentPrice.toFixed(4):'---',inline:true}]);
     addLog(c.emoji+' 5m出来高【'+c.label+'】'+Math.floor(vol).toLocaleString()+' → Discord送信済み',
@@ -474,48 +701,47 @@ async function checkWR(wr) {
 // ── 価格アラート ──────────────────────────────────
 async function checkPriceAlerts(price) {
   for (var i=0; i<priceAlerts.length; i++) {
-    var a = priceAlerts[i];
+    var a=priceAlerts[i];
     if (a.triggered) continue;
-    if (a.dir==='above' ? price >= a.price : price <= a.price) {
-      a.triggered = true;
-      renderAlerts();
-      var emoji = a.dir==='above' ? '📈' : '📉';
-      var dirText = a.dir==='above' ? '上抜け' : '下抜け';
-      playBeep(880, 3);
+    if (a.dir==='above' ? price>=a.price : price<=a.price) {
+      a.triggered=true; renderAlerts();
+      var emoji=a.dir==='above'?'📈':'📉';
+      var dirText=a.dir==='above'?'上抜け':'下抜け';
+      playBeep(880,3);
       await sendDiscord(emoji+' HYPE 価格アラート発動！',
         '**'+dirText+'** $'+a.price.toFixed(4)+' を検知',
-        a.dir==='above' ? 0x22d3a0 : 0xff4d6a,
+        a.dir==='above'?0x22d3a0:0xff4d6a,
         [{name:'現在価格',value:'**$'+price.toFixed(4)+'**',inline:true},
          {name:'アラート価格',value:'$'+a.price.toFixed(4),inline:true}]);
-      addLog(emoji+' '+dirText+' $'+a.price.toFixed(4)+' → Discord送信済み', a.dir==='above'?'green':'red');
+      addLog(emoji+' '+dirText+' $'+a.price.toFixed(4)+' → Discord送信済み',a.dir==='above'?'green':'red');
     }
   }
 }
 
 // ── UI ───────────────────────────────────────────
 function setDir(d) {
-  direction = d;
-  document.getElementById('btnAbove').className = d==='above' ? 'dir-btn active-above' : 'dir-btn';
-  document.getElementById('btnBelow').className = d==='below' ? 'dir-btn active-below' : 'dir-btn';
+  direction=d;
+  document.getElementById('btnAbove').className=d==='above'?'dir-btn active-above':'dir-btn';
+  document.getElementById('btnBelow').className=d==='below'?'dir-btn active-below':'dir-btn';
 }
 
 function addPriceAlert() {
-  var val = parseFloat(document.getElementById('alertPrice').value);
-  if (isNaN(val)||val<=0) { alert('有効な価格を入力してください'); return; }
-  priceAlerts.push({ price:val, dir:direction, triggered:false, id:Date.now() });
-  document.getElementById('alertPrice').value = '';
+  var val=parseFloat(document.getElementById('alertPrice').value);
+  if (isNaN(val)||val<=0){ alert('有効な価格を入力してください'); return; }
+  priceAlerts.push({price:val,dir:direction,triggered:false,id:Date.now()});
+  document.getElementById('alertPrice').value='';
   renderAlerts();
 }
 
 function deleteAlert(id) {
-  priceAlerts = priceAlerts.filter(function(a){ return a.id !== id; });
+  priceAlerts=priceAlerts.filter(function(a){ return a.id!==id; });
   renderAlerts();
 }
 
 function renderAlerts() {
-  var el = document.getElementById('alertsList');
-  if (priceAlerts.length === 0) { el.innerHTML='<div class="empty-state">価格アラートがまだありません</div>'; return; }
-  el.innerHTML = priceAlerts.map(function(a) {
+  var el=document.getElementById('alertsList');
+  if (priceAlerts.length===0){ el.innerHTML='<div class="empty-state">価格アラートがまだありません</div>'; return; }
+  el.innerHTML=priceAlerts.map(function(a){
     return '<div class="alert-item '+(a.triggered?'triggered':'')+'">'+
       '<div class="alert-item-left">'+
       '<div class="alert-arrow '+a.dir+'">'+(a.dir==='above'?'<span style="color:var(--green)">↑</span>':'<span style="color:var(--red)">↓</span>')+'</div>'+
@@ -528,21 +754,22 @@ function renderAlerts() {
 }
 
 function addLog(msg, type) {
-  logs.unshift({ time: new Date().toLocaleTimeString('ja-JP'), msg:msg, type:type||'' });
-  if (logs.length > 10) logs.pop();
-  var el = document.getElementById('logList');
-  var title = document.getElementById('logTitle');
-  title.style.display = 'block';
-  el.innerHTML = logs.map(function(l){ return '<div class="log-item log-'+l.type+'">['+l.time+'] '+l.msg+'</div>'; }).join('');
+  logs.unshift({time:new Date().toLocaleTimeString('ja-JP'),msg:msg,type:type||''});
+  if (logs.length>10) logs.pop();
+  var el=document.getElementById('logList');
+  document.getElementById('logTitle').style.display='block';
+  el.innerHTML=logs.map(function(l){
+    return '<div class="log-item log-'+l.type+'">['+l.time+'] '+l.msg+'</div>';
+  }).join('');
 }
 
 function setStatus(type, text) {
-  document.getElementById('statusDot').className = 'status-dot ' + type;
-  document.getElementById('statusText').textContent = text;
+  document.getElementById('statusDot').className='status-dot '+type;
+  document.getElementById('statusText').textContent=text;
 }
 
 function setIntervalSec(sec) {
-  intervalMs = sec * 1000;
+  intervalMs=sec*1000;
   ['5','10','30'].forEach(function(s){ document.getElementById('iv'+s).classList.remove('active'); });
   document.getElementById('iv'+sec).classList.add('active');
   restartTimer();
@@ -551,7 +778,7 @@ function setIntervalSec(sec) {
 function restartTimer() {
   if (intervalTimer) clearInterval(intervalTimer);
   fetchPrice(); fetchVolume();
-  intervalTimer = setInterval(function(){ fetchPrice(); fetchVolume(); }, intervalMs);
+  intervalTimer=setInterval(function(){ fetchPrice(); fetchVolume(); }, intervalMs);
 }
 </script>
 </body>
