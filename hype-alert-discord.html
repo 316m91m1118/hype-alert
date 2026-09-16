@@ -148,7 +148,7 @@
 <div class="section-title">インジケーター（1分足）</div>
 <div class="indic-card">
   <div class="indic-row">
-    <span class="indic-label">RSI (14)</span>
+    <span class="indic-label">ストキャスRSI %K</span>
     <span class="indic-val" id="rsiDisplay" style="color:var(--muted)">---</span>
   </div>
   <div class="indic-row">
@@ -389,22 +389,72 @@ async function sendDiscord(title, desc, color, fields) {
 }
 
 // ── インジケーター計算 ────────────────────────────
-function calcRSI(closes) {
+// RSI計算（内部用）
+function calcRSIraw(closes) {
+  // closes: 古い順
+  if (closes.length < 15) return null;
+  var gains=0, losses=0;
+  for (var i=1;i<=14;i++){var d=closes[i]-closes[i-1];if(d>=0)gains+=d;else losses-=d;}
+  var ag=gains/14, al=losses/14;
+  for (var i=15;i<closes.length;i++){var d=closes[i]-closes[i-1];ag=(ag*13+(d>0?d:0))/14;al=(al*13+(d<0?-d:0))/14;}
+  if (al===0) return 100;
+  return 100-(100/(1+ag/al));
+}
+
+// RSI配列を生成（古い順closes → 古い順RSI配列）
+function calcRSIarray(closes, period) {
+  period = period || 14;
+  var result = [];
+  if (closes.length < period+1) return result;
+  var gains=0, losses=0;
+  for (var i=1;i<=period;i++){var d=closes[i]-closes[i-1];if(d>=0)gains+=d;else losses-=d;}
+  var ag=gains/period, al=losses/period;
+  result.push(al===0?100:100-(100/(1+ag/al)));
+  for (var i=period+1;i<closes.length;i++){
+    var d=closes[i]-closes[i-1];
+    ag=(ag*(period-1)+(d>0?d:0))/period;
+    al=(al*(period-1)+(d<0?-d:0))/period;
+    result.push(al===0?100:100-(100/(1+ag/al)));
+  }
+  return result;
+}
+
+// ストキャスRSI %K計算（デフォルト: RSI14, Stoch14, K3）
+// 返り値: 最新の%K値（0〜100）、新しい順closesを受け取る
+function calcStochRSI(closes, rsiPeriod, stochPeriod, kPeriod) {
+  rsiPeriod = rsiPeriod || 14;
+  stochPeriod = stochPeriod || 14;
+  kPeriod = kPeriod || 3;
+  // 古い順に変換
   var c = closes.slice().reverse();
-  if (c.length < 15) return null;
-  var gains = 0, losses = 0;
-  for (var i = 1; i <= 14; i++) {
-    var d = c[i] - c[i-1];
-    if (d >= 0) gains += d; else losses -= d;
+  // RSI配列を生成（古い順）
+  var rsiArr = calcRSIarray(c, rsiPeriod);
+  if (rsiArr.length < stochPeriod + kPeriod - 1) return null;
+  // ストキャスティクス計算
+  var stochArr = [];
+  for (var i = stochPeriod-1; i < rsiArr.length; i++) {
+    var slice = rsiArr.slice(i-stochPeriod+1, i+1);
+    var hh = Math.max.apply(null, slice);
+    var ll = Math.min.apply(null, slice);
+    stochArr.push(hh===ll ? 50 : (rsiArr[i]-ll)/(hh-ll)*100);
   }
-  var ag = gains/14, al = losses/14;
-  for (var i = 15; i < c.length; i++) {
-    var d = c[i] - c[i-1];
-    ag = (ag*13 + (d>0?d:0)) / 14;
-    al = (al*13 + (d<0?-d:0)) / 14;
+  if (stochArr.length < kPeriod) return null;
+  // %K = stochのSMA(kPeriod)
+  var kArr = [];
+  for (var i = kPeriod-1; i < stochArr.length; i++) {
+    var sum = 0;
+    for (var j = 0; j < kPeriod; j++) sum += stochArr[i-j];
+    kArr.push(sum / kPeriod);
   }
-  if (al === 0) return 100;
-  return 100 - (100 / (1 + ag/al));
+  // 最新値を返す（新しい順closesなので最後がlatest）
+  return kArr[kArr.length-1];
+}
+
+// ストキャスRSI配列を生成（新しい順closes → 各ポイントのStochRSI %K）
+function calcStochRSIat(closes, offset, rsiPeriod, stochPeriod, kPeriod) {
+  // offset本前のローソク足のStochRSIを計算
+  var sl = closes.slice(offset);
+  return calcStochRSI(sl, rsiPeriod, stochPeriod, kPeriod);
 }
 
 function calcCVD(candles) {
@@ -428,21 +478,24 @@ function calcWR(highs, lows, closes) {
 
 // ── ダイバージェンス検知 ──────────────────────────
 async function checkDivergence(tf, candles) {
-  if (!divCfg[tf].on || candles.length < 20) return;
+  // candles[0]=形成中、candles[1]以降=確定済み
+  // 確定済み足だけで判定するため、candles[1]を最新とする
+  if (!divCfg[tf].on || candles.length < 25) return;
   var now = Date.now();
   var tfLabel = TF_CONFIG[tf].label;
+  var confirmed = candles.slice(1); // 確定済み足のみ
 
-  // 直近5ポイント分のデータを計算
+  // 直近5ポイント（確定済み足）のデータを計算
   var pts = [];
-  for (var i = 0; i < Math.min(5, candles.length - 15); i++) {
-    var sl = candles.slice(i);
+  for (var i = 0; i < Math.min(5, confirmed.length - 20); i++) {
+    var sl = confirmed.slice(i);
     var closes = sl.map(function(c){ return parseFloat(c.c); });
-    var rsi = calcRSI(closes);
+    var stochRsi = calcStochRSIat(closes, 0, 14, 14, 3);
     var cvd = calcCVD(sl.slice(0, Math.min(20, sl.length)));
     pts.push({
-      low:  parseFloat(candles[i].l),
-      high: parseFloat(candles[i].h),
-      rsi:  rsi,
+      low:  parseFloat(confirmed[i].l),
+      high: parseFloat(confirmed[i].h),
+      rsi:  stochRsi,  // 変数名はrsiのまま流用
       cvd:  cvd
     });
   }
@@ -455,27 +508,27 @@ async function checkDivergence(tf, candles) {
     if (latest.low < prev.low && latest.rsi > prev.rsi && now - divCfg[tf].lastRsiBull > DIV_COOLDOWN) {
       divCfg[tf].lastRsiBull = now;
       playBeep(600, 3);
-      await sendDiscord('📐 RSI 強気ダイバージェンス【'+tfLabel+'】',
-        '価格が安値を更新しましたが、RSIは安値を更新しませんでした\n**反発・上昇の可能性**',
+      await sendDiscord('📐 StochRSI 強気ダイバージェンス【'+tfLabel+'】',
+        '価格が安値を更新しましたが、ストキャスRSIは安値を更新しませんでした\n**反発・上昇の可能性**',
         0xa78bfa,
         [{name:'時間軸',value:tfLabel,inline:true},
          {name:'価格安値',value:'$'+latest.low.toFixed(4),inline:true},
-         {name:'RSI',value:latest.rsi.toFixed(1),inline:true},
+         {name:'StochRSI%K',value:latest.rsi!==null?latest.rsi.toFixed(1):'---',inline:true},
          {name:'現在価格',value:currentPrice?'$'+currentPrice.toFixed(4):'---',inline:true}]);
-      addLog('📐 RSI強気ダイバージェンス【'+tfLabel+'】→ Discord送信済み','purple');
+      addLog('📐 StochRSI強気ダイバージェンス【'+tfLabel+'】→ Discord送信済み','purple');
     }
     // RSI弱気
     if (latest.high > prev.high && latest.rsi < prev.rsi && now - divCfg[tf].lastRsiBear > DIV_COOLDOWN) {
       divCfg[tf].lastRsiBear = now;
       playBeep(400, 3);
-      await sendDiscord('📐 RSI 弱気ダイバージェンス【'+tfLabel+'】',
-        '価格が高値を更新しましたが、RSIは高値を更新しませんでした\n**反落・下落の可能性**',
+      await sendDiscord('📐 StochRSI 弱気ダイバージェンス【'+tfLabel+'】',
+        '価格が高値を更新しましたが、ストキャスRSIは高値を更新しませんでした\n**反落・下落の可能性**',
         0xff4d6a,
         [{name:'時間軸',value:tfLabel,inline:true},
          {name:'価格高値',value:'$'+latest.high.toFixed(4),inline:true},
-         {name:'RSI',value:latest.rsi.toFixed(1),inline:true},
+         {name:'StochRSI%K',value:latest.rsi!==null?latest.rsi.toFixed(1):'---',inline:true},
          {name:'現在価格',value:currentPrice?'$'+currentPrice.toFixed(4):'---',inline:true}]);
-      addLog('📐 RSI弱気ダイバージェンス【'+tfLabel+'】→ Discord送信済み','red');
+      addLog('📐 StochRSI弱気ダイバージェンス【'+tfLabel+'】→ Discord送信済み','red');
     }
   }
 
