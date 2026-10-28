@@ -1,3 +1,6 @@
+
+hype-alert-discord (6).html
+100%
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -188,25 +191,31 @@
   </div>
   <div class="volume-bar-wrap"><div class="volume-bar" id="vol1mBar" style="width:0%"></div></div>
   <div class="volume-thresholds">
-    <span>0</span><span style="color:var(--blue)">▲ 25K</span>
-    <span style="color:var(--orange)">▲ 50K</span><span style="color:var(--red)">▲ 100K</span>
+    <span>0</span><span style="color:var(--blue)">▲ 10K</span>
+    <span style="color:var(--green)">▲ 20K</span><span style="color:var(--orange)">▲ 50K</span>
+    <span style="color:var(--red)">▲ 100K</span>
   </div>
 </div>
 <div class="vol-config">
   <div class="vol-config-row">
     <span class="vol-input-label">📊 弱（1m）</span>
-    <input class="vol-input" type="number" id="th_1m_w" value="25000" step="1000">
+    <input class="vol-input" type="number" id="th_1m_w" value="10000" step="1000">
     <button class="vol-toggle on" id="btn_1m_w">ON</button>
   </div>
   <div class="vol-config-row">
     <span class="vol-input-label">⚡ 中（1m）</span>
-    <input class="vol-input" type="number" id="th_1m_m" value="50000" step="5000">
+    <input class="vol-input" type="number" id="th_1m_m" value="20000" step="1000">
     <button class="vol-toggle on" id="btn_1m_m">ON</button>
   </div>
   <div class="vol-config-row">
     <span class="vol-input-label">🔥 強（1m）</span>
-    <input class="vol-input" type="number" id="th_1m_s" value="100000" step="10000">
+    <input class="vol-input" type="number" id="th_1m_s" value="50000" step="5000">
     <button class="vol-toggle on" id="btn_1m_s">ON</button>
+  </div>
+  <div class="vol-config-row">
+    <span class="vol-input-label">🚨 最強（1m）</span>
+    <input class="vol-input" type="number" id="th_1m_x" value="100000" step="10000">
+    <button class="vol-toggle on" id="btn_1m_x">ON</button>
   </div>
 </div>
 
@@ -276,20 +285,20 @@ const DIV_COOLDOWN = 30 * 60 * 1000; // 30分
 // fetchEvery: 何ミリ秒ごとにチェックするか
 // lookback: 取得する過去データ（ms）
 var TF_CONFIG = {
-  '5m':  { label:'5分足',  interval:'5m',  fetchEvery:60*1000,       lookback:2*60*60*1000,      lastFetch:0 },
-  '15m': { label:'15分足', interval:'15m', fetchEvery:60*1000,       lookback:6*60*60*1000,      lastFetch:0 },
-  '30m': { label:'30分足', interval:'30m', fetchEvery:5*60*1000,     lookback:12*60*60*1000,     lastFetch:0 },
-  '1h':  { label:'1時間',  interval:'1h',  fetchEvery:5*60*1000,     lookback:24*60*60*1000,     lastFetch:0 },
-  '4h':  { label:'4時間',  interval:'4h',  fetchEvery:30*60*1000,    lookback:4*24*60*60*1000,   lastFetch:0 },
-  '8h':  { label:'8時間',  interval:'8h',  fetchEvery:30*60*1000,    lookback:8*24*60*60*1000,   lastFetch:0 },
-  '1d':  { label:'日足',   interval:'1d',  fetchEvery:60*60*1000,    lookback:60*24*60*60*1000,  lastFetch:0 },
-  '1w':  { label:'週足',   interval:'1w',  fetchEvery:60*60*1000,    lookback:52*7*24*60*60*1000,lastFetch:0 }
+  '5m':  { label:'5分足',  interval:'5m',  fetchEvery:60*1000,    lookback:150*5*60*1000,          lastFetch:0 },
+  '15m': { label:'15分足', interval:'15m', fetchEvery:60*1000,    lookback:150*15*60*1000,         lastFetch:0 },
+  '30m': { label:'30分足', interval:'30m', fetchEvery:5*60*1000,  lookback:150*30*60*1000,         lastFetch:0 },
+  '1h':  { label:'1時間',  interval:'1h',  fetchEvery:5*60*1000,  lookback:150*60*60*1000,         lastFetch:0 },
+  '4h':  { label:'4時間',  interval:'4h',  fetchEvery:30*60*1000, lookback:150*4*60*60*1000,       lastFetch:0 },
+  '8h':  { label:'8時間',  interval:'8h',  fetchEvery:30*60*1000, lookback:150*8*60*60*1000,       lastFetch:0 },
+  '1d':  { label:'日足',   interval:'1d',  fetchEvery:60*60*1000, lookback:150*24*60*60*1000,      lastFetch:0 },
+  '1w':  { label:'週足',   interval:'1w',  fetchEvery:60*60*1000, lookback:150*7*24*60*60*1000,    lastFetch:0 }
 };
 
 // ダイバージェンスのON/OFFとクールダウン
 var divCfg = {};
 Object.keys(TF_CONFIG).forEach(function(tf) {
-  divCfg[tf] = { on: true, lastRsiBull:0, lastRsiBear:0, lastCvdBull:0, lastCvdBear:0 };
+  divCfg[tf] = { on: true, lastBullTime:0, lastBearTime:0, lastBullCandle:0, lastBearCandle:0 };
 });
 
 // ── 音声 ─────────────────────────────────────────
@@ -333,18 +342,18 @@ var lastCandle1mTime = null, lastCandle5mTime = null;
 var wrNotifiedThisMinute = false;
 
 var alertCfg = {
-  vol1m_w:{on:true,th:25000}, vol1m_m:{on:true,th:50000}, vol1m_s:{on:true,th:100000},
+  vol1m_w:{on:true,th:10000}, vol1m_m:{on:true,th:20000}, vol1m_s:{on:true,th:50000}, vol1m_x:{on:true,th:100000},
   vol5m_w:{on:true,th:70000}, vol5m_s:{on:true,th:200000},
   wr:{on:true,th:-90}
 };
-var vol1mNotified = {w:false,m:false,s:false};
+var vol1mNotified = {w:false,m:false,s:false,x:false};
 var vol5mNotified = {w:false,s:false};
 
 // ── ボタン初期化 ──────────────────────────────────
 window.addEventListener('DOMContentLoaded', function() {
   // 出来高・WRボタン
   var btnMap = [
-    ['btn_1m_w','vol1m_w'],['btn_1m_m','vol1m_m'],['btn_1m_s','vol1m_s'],
+    ['btn_1m_w','vol1m_w'],['btn_1m_m','vol1m_m'],['btn_1m_s','vol1m_s'],['btn_1m_x','vol1m_x'],
     ['btn_5m_w','vol5m_w'],['btn_5m_s','vol5m_s'],['btn_wr','wr']
   ];
   btnMap.forEach(function(pair) {
@@ -367,9 +376,10 @@ window.addEventListener('DOMContentLoaded', function() {
   });
 
   // しきい値入力
-  document.getElementById('th_1m_w').addEventListener('change', function(){ alertCfg.vol1m_w.th = parseInt(this.value)||25000; });
-  document.getElementById('th_1m_m').addEventListener('change', function(){ alertCfg.vol1m_m.th = parseInt(this.value)||50000; });
-  document.getElementById('th_1m_s').addEventListener('change', function(){ alertCfg.vol1m_s.th = parseInt(this.value)||100000; });
+  document.getElementById('th_1m_w').addEventListener('change', function(){ alertCfg.vol1m_w.th = parseInt(this.value)||10000; });
+  document.getElementById('th_1m_m').addEventListener('change', function(){ alertCfg.vol1m_m.th = parseInt(this.value)||20000; });
+  document.getElementById('th_1m_s').addEventListener('change', function(){ alertCfg.vol1m_s.th = parseInt(this.value)||50000; });
+  document.getElementById('th_1m_x').addEventListener('change', function(){ alertCfg.vol1m_x.th = parseInt(this.value)||100000; });
   document.getElementById('th_5m_w').addEventListener('change', function(){ alertCfg.vol5m_w.th = parseInt(this.value)||70000; });
   document.getElementById('th_5m_s').addEventListener('change', function(){ alertCfg.vol5m_s.th = parseInt(this.value)||200000; });
   document.getElementById('th_wr').addEventListener('change',   function(){ alertCfg.wr.th = parseFloat(this.value)||-90; });
@@ -478,90 +488,68 @@ function calcWR(highs, lows, closes) {
 
 // ── ダイバージェンス検知 ──────────────────────────
 async function checkDivergence(tf, candles) {
-  // candles[0]=形成中、candles[1]以降=確定済み
-  // 確定済み足だけで判定するため、candles[1]を最新とする
-  if (!divCfg[tf].on || candles.length < 25) return;
+  if (!divCfg[tf].on) return;
   var now = Date.now();
   var tfLabel = TF_CONFIG[tf].label;
-  var confirmed = candles.slice(1); // 確定済み足のみ
 
-  // 直近5ポイント（確定済み足）のデータを計算
-  var pts = [];
-  for (var i = 0; i < Math.min(5, confirmed.length - 20); i++) {
-    var sl = confirmed.slice(i);
-    var closes = sl.map(function(c){ return parseFloat(c.c); });
-    var stochRsi = calcStochRSIat(closes, 0, 14, 14, 3);
-    var cvd = calcCVD(sl.slice(0, Math.min(20, sl.length)));
-    pts.push({
-      low:  parseFloat(confirmed[i].l),
-      high: parseFloat(confirmed[i].h),
-      rsi:  stochRsi,  // 変数名はrsiのまま流用
-      cvd:  cvd
-    });
+  // candlesは新しい順。形成中のローソク足（終了時刻がまだ先）を除いて、確定済みの足だけで判定する
+  var confirmed;
+  if (typeof candles[0].T === 'number') {
+    confirmed = candles.filter(function(c){ return c.T < now; });
+  } else {
+    confirmed = candles.slice(1);
   }
-  if (pts.length < 3) return;
+  if (confirmed.length < 40) return;
 
-  var latest = pts[0], prev = pts[2];
+  // 確定足の最新(0本目)と、2本前で価格とストキャスRSI %Kを比べる
+  function pt(offset) {
+    var sl = confirmed.slice(offset);
+    var closes = sl.map(function(c){ return parseFloat(c.c); });
+    return {
+      low:  parseFloat(confirmed[offset].l),
+      high: parseFloat(confirmed[offset].h),
+      k:    calcStochRSI(closes, 14, 14, 3)
+    };
+  }
+  var latest = pt(0), prev = pt(2);
+  var candleTime = confirmed[0].t; // 判定に使った確定足の開始時刻
 
-  // RSI強気
-  if (latest.rsi !== null && prev.rsi !== null) {
-    if (latest.low < prev.low && latest.rsi > prev.rsi && now - divCfg[tf].lastRsiBull > DIV_COOLDOWN) {
-      divCfg[tf].lastRsiBull = now;
+  if (latest.k !== null && prev.k !== null) {
+    // 強気：価格が安値を更新 → ストキャスRSIは安値を更新せず
+    if (latest.low < prev.low && latest.k > prev.k &&
+        divCfg[tf].lastBullCandle !== candleTime &&
+        now - divCfg[tf].lastBullTime > DIV_COOLDOWN) {
+      divCfg[tf].lastBullCandle = candleTime;
+      divCfg[tf].lastBullTime = now;
       playBeep(600, 3);
       await sendDiscord('📐 StochRSI 強気ダイバージェンス【'+tfLabel+'】',
-        '価格が安値を更新しましたが、ストキャスRSIは安値を更新しませんでした\n**反発・上昇の可能性**',
+        '【'+tfLabel+'】確定足で、価格が安値を更新しましたが、ストキャスRSIは安値を更新しませんでした\n**反発・上昇の可能性**',
         0xa78bfa,
         [{name:'時間軸',value:tfLabel,inline:true},
          {name:'価格安値',value:'$'+latest.low.toFixed(4),inline:true},
-         {name:'StochRSI%K',value:latest.rsi!==null?latest.rsi.toFixed(1):'---',inline:true},
+         {name:'StochRSI%K',value:latest.k.toFixed(1)+'（2本前: '+prev.k.toFixed(1)+'）',inline:true},
          {name:'現在価格',value:currentPrice?'$'+currentPrice.toFixed(4):'---',inline:true}]);
       addLog('📐 StochRSI強気ダイバージェンス【'+tfLabel+'】→ Discord送信済み','purple');
     }
-    // RSI弱気
-    if (latest.high > prev.high && latest.rsi < prev.rsi && now - divCfg[tf].lastRsiBear > DIV_COOLDOWN) {
-      divCfg[tf].lastRsiBear = now;
+    // 弱気：価格が高値を更新 → ストキャスRSIは高値を更新せず
+    if (latest.high > prev.high && latest.k < prev.k &&
+        divCfg[tf].lastBearCandle !== candleTime &&
+        now - divCfg[tf].lastBearTime > DIV_COOLDOWN) {
+      divCfg[tf].lastBearCandle = candleTime;
+      divCfg[tf].lastBearTime = now;
       playBeep(400, 3);
       await sendDiscord('📐 StochRSI 弱気ダイバージェンス【'+tfLabel+'】',
-        '価格が高値を更新しましたが、ストキャスRSIは高値を更新しませんでした\n**反落・下落の可能性**',
+        '【'+tfLabel+'】確定足で、価格が高値を更新しましたが、ストキャスRSIは高値を更新しませんでした\n**反落・下落の可能性**',
         0xff4d6a,
         [{name:'時間軸',value:tfLabel,inline:true},
          {name:'価格高値',value:'$'+latest.high.toFixed(4),inline:true},
-         {name:'StochRSI%K',value:latest.rsi!==null?latest.rsi.toFixed(1):'---',inline:true},
+         {name:'StochRSI%K',value:latest.k.toFixed(1)+'（2本前: '+prev.k.toFixed(1)+'）',inline:true},
          {name:'現在価格',value:currentPrice?'$'+currentPrice.toFixed(4):'---',inline:true}]);
       addLog('📐 StochRSI弱気ダイバージェンス【'+tfLabel+'】→ Discord送信済み','red');
     }
   }
 
-  // CVD強気
-  if (latest.cvd !== null && prev.cvd !== null) {
-    if (latest.low < prev.low && latest.cvd > prev.cvd && now - divCfg[tf].lastCvdBull > DIV_COOLDOWN) {
-      divCfg[tf].lastCvdBull = now;
-      playBeep(650, 3);
-      await sendDiscord('📐 CVD 強気ダイバージェンス【'+tfLabel+'】',
-        '価格が安値を更新しましたが、CVDは安値を更新しませんでした\n**買い圧力の底堅さ・反発の可能性**',
-        0x22d3a0,
-        [{name:'時間軸',value:tfLabel,inline:true},
-         {name:'価格安値',value:'$'+latest.low.toFixed(4),inline:true},
-         {name:'CVD',value:latest.cvd.toFixed(0),inline:true},
-         {name:'現在価格',value:currentPrice?'$'+currentPrice.toFixed(4):'---',inline:true}]);
-      addLog('📐 CVD強気ダイバージェンス【'+tfLabel+'】→ Discord送信済み','green');
-    }
-    // CVD弱気
-    if (latest.high > prev.high && latest.cvd < prev.cvd && now - divCfg[tf].lastCvdBear > DIV_COOLDOWN) {
-      divCfg[tf].lastCvdBear = now;
-      playBeep(350, 3);
-      await sendDiscord('📐 CVD 弱気ダイバージェンス【'+tfLabel+'】',
-        '価格が高値を更新しましたが、CVDは高値を更新しませんでした\n**売り圧力増加・下落の可能性**',
-        0xf59e0b,
-        [{name:'時間軸',value:tfLabel,inline:true},
-         {name:'価格高値',value:'$'+latest.high.toFixed(4),inline:true},
-         {name:'CVD',value:latest.cvd.toFixed(0),inline:true},
-         {name:'現在価格',value:currentPrice?'$'+currentPrice.toFixed(4):'---',inline:true}]);
-      addLog('📐 CVD弱気ダイバージェンス【'+tfLabel+'】→ Discord送信済み','orange');
-    }
-  }
-
-  // ステータス表示更新
+  // 最終チェック時刻の表示
   var el = document.getElementById('div_status_' + tf);
   if (el) el.textContent = new Date().toLocaleTimeString('ja-JP');
 }
@@ -581,7 +569,7 @@ async function fetchDivTF(tf) {
       }})
     });
     var data = await res.json();
-    if (!Array.isArray(data) || data.length < 20) return;
+    if (!Array.isArray(data) || data.length < 45) return;
     var sorted = data.sort(function(a,b){ return b.t - a.t; });
     await checkDivergence(tf, sorted);
   } catch(e) {}
@@ -631,16 +619,18 @@ async function fetchVolume() {
       var s1 = d1.sort(function(a,b){ return b.t-a.t; });
       var vol1 = parseFloat(s1[0].v), t1 = s1[0].t;
       if (lastCandle1mTime !== null && t1 !== lastCandle1mTime) {
-        vol1mNotified={w:false,m:false,s:false}; wrNotifiedThisMinute=false;
+        vol1mNotified={w:false,m:false,s:false,x:false}; wrNotifiedThisMinute=false;
       }
       lastCandle1mTime = t1;
-      updateVolDisplay('vol1mDisplay','vol1mBar',vol1,alertCfg.vol1m_w.th,alertCfg.vol1m_m.th,alertCfg.vol1m_s.th);
+      updateVol1mDisplay(vol1);
       await checkVol1m(vol1);
       if (s1.length >= 20) {
         var closes = s1.slice(0,20).map(function(c){ return parseFloat(c.c); });
-        var rsi = calcRSI(closes);
+        // ストキャスRSI %K（計算に30本以上必要なので、取得済みの全ローソク足を使う）
+        var allCloses = s1.map(function(c){ return parseFloat(c.c); });
+        var stochK = calcStochRSI(allCloses, 14, 14, 3);
         var rsiEl = document.getElementById('rsiDisplay');
-        if (rsi!==null){ rsiEl.textContent=rsi.toFixed(1); rsiEl.style.color=rsi>=70?'var(--red)':rsi<=30?'var(--green)':'var(--text)'; }
+        if (stochK!==null){ rsiEl.textContent=stochK.toFixed(1); rsiEl.style.color=stochK>=80?'var(--red)':stochK<=20?'var(--green)':'var(--text)'; }
         var cvd = calcCVD(s1.slice(0,20));
         var cvdEl = document.getElementById('cvdDisplay');
         cvdEl.textContent = (cvd>=0?'+':'')+Math.floor(cvd).toLocaleString();
@@ -692,11 +682,25 @@ function updateVolDisplay(dId,bId,vol,th1,th2,th3) {
   else{el.style.color='var(--muted)';bar.style.background='var(--border)';}
 }
 
+function updateVol1mDisplay(vol) {
+  var el=document.getElementById('vol1mDisplay'), bar=document.getElementById('vol1mBar');
+  if (!el) return;
+  el.textContent = vol>=1000?(vol/1000).toFixed(1)+'K':Math.floor(vol);
+  bar.style.width = Math.min((vol/(alertCfg.vol1m_x.th*1.2))*100,100)+'%';
+  var color = 'var(--muted)', barColor = 'var(--border)';
+  if (vol>=alertCfg.vol1m_x.th){ color='var(--red)'; barColor='var(--red)'; }
+  else if (vol>=alertCfg.vol1m_s.th){ color='var(--orange)'; barColor='var(--orange)'; }
+  else if (vol>=alertCfg.vol1m_m.th){ color='var(--green)'; barColor='var(--green)'; }
+  else if (vol>=alertCfg.vol1m_w.th){ color='var(--blue)'; barColor='var(--blue)'; }
+  el.style.color = color; bar.style.background = barColor;
+}
+
 async function checkVol1m(vol) {
   var cfgs=[
-    {key:'w',th:alertCfg.vol1m_w,next:alertCfg.vol1m_m.th,emoji:'📊',label:'弱',color:0x38bdf8,beep:440,n:2},
-    {key:'m',th:alertCfg.vol1m_m,next:alertCfg.vol1m_s.th,emoji:'⚡',label:'中',color:0xf59e0b,beep:660,n:2},
-    {key:'s',th:alertCfg.vol1m_s,next:Infinity,emoji:'🔥',label:'強',color:0xff4d6a,beep:880,n:3}
+    {key:'w',th:alertCfg.vol1m_w,next:alertCfg.vol1m_m.th,emoji:'📊',label:'弱',  color:0x38bdf8,beep:440,n:2,log:'blue'},
+    {key:'m',th:alertCfg.vol1m_m,next:alertCfg.vol1m_s.th,emoji:'⚡',label:'中',  color:0x22d3a0,beep:550,n:2,log:'green'},
+    {key:'s',th:alertCfg.vol1m_s,next:alertCfg.vol1m_x.th,emoji:'🔥',label:'強',  color:0xf59e0b,beep:770,n:3,log:'orange'},
+    {key:'x',th:alertCfg.vol1m_x,next:Infinity,           emoji:'🚨',label:'最強',color:0xff4d6a,beep:990,n:3,log:'red'}
   ];
   for (var i=0;i<cfgs.length;i++){
     var c=cfgs[i];
@@ -705,7 +709,7 @@ async function checkVol1m(vol) {
     vol1mNotified[c.key]=true; playBeep(c.beep,c.n);
     await sendDiscord(c.emoji+' 1分足 出来高【'+c.label+'】シグナル','1分足の出来高が **'+c.th.th.toLocaleString()+'** を突破',c.color,
       [{name:'出来高',value:'**'+Math.floor(vol).toLocaleString()+'**',inline:true},{name:'現在価格',value:currentPrice?'$'+currentPrice.toFixed(4):'---',inline:true}]);
-    addLog(c.emoji+' 1m出来高【'+c.label+'】'+Math.floor(vol).toLocaleString()+' → Discord送信済み',c.key==='s'?'red':c.key==='m'?'orange':'blue');
+    addLog(c.emoji+' 1m出来高【'+c.label+'】'+Math.floor(vol).toLocaleString()+' → Discord送信済み',c.log);
   }
 }
 
@@ -799,3 +803,4 @@ function restartTimer() {
 </script>
 </body>
 </html>
+hype-alert-discord (6).html を表示しています。
